@@ -6,6 +6,7 @@ __pycache__/
 # C extensions
 *.so
 
+
 # Distribution / packaging
 .Python
 build/
@@ -23,6 +24,9 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+
+#Data
+*.csv
 
 # PyInstaller artifacts
 pyinstaller/
@@ -59,3 +63,13 @@ venv.bak/
 .spyderproject
 .spyproject
 .ropeproject
+
+
+# Ignore the sensitive CSV
+Data/verified_online.csv
+
+# Ignore all .env files
+*.env
+
+# Ignore other common secrets files
+config/secrets.yml
