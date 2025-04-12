@@ -14,9 +14,8 @@ import joblib  # For loading ML models
 import numpy as np
 import pandas as pd
 import vt
-import os
 from dotenv import load_dotenv
-import os 
+import os
 load_dotenv()
 api_key = os.getenv("VT_API_KEY", "")
 client = vt.Client(api_key)
@@ -164,10 +163,10 @@ def analyze_url(url, model=None):
 
 def VT_url(url):
     #Use VT API to pull score, and extra reasons 
-    analysis = client.scan_url("http://168.99.76.43/?rid=LHCrKai")
+    analysis = client.scan_url(url)
 
     while True:
-      analysis = client.scan_url("http://168.99.76.43/?rid=LHCrKai", analysis.id)
+      analysis = client.scan_url(url, analysis.id)
       if analysis.status == "completed":
          break
       time.sleep(30)

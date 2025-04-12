@@ -1,41 +1,20 @@
-import vt
-client = vt.Client("54ec36e901c1901677338551c4ebae5f350da2f7a85877d939e84c70eb9f47d4")
-   #Use VT API to pull score, and extra reasons 
+import json
 
-analysis = client.scan_url("http://168.99.76.43/?rid=LHCrKai")
+json_str = '''{
+  "phish": "yes",
+  "reasoning": "The URL uses 'amaz0n.com', which is a misspelling of 'amazon.com', commonly used in phishing attempts."
+}'''
 
-while True:
-  analysis = client.scan_url("http://168.99.76.43/?rid=LHCrKai", analysis.id)
-  print(analysis.status)
-  if analysis.status == "completed":
-     break
-  time.sleep(30)
+# Print the raw representation to inspect for extra characters or BOM
+print("Raw JSON string:", repr(json_str))
 
-
-
-stats = analysis.get('stats', {})
-malicious_count = stats.get('malicious', 0)
-total_engines = sum(stats.values())
-
-print(f"Community Score: {malicious_count} out of {total_engines}")
-
-# Now iterate through the results to get the details for vendors marking the URL as malicious.
-results = analysis.get('results', {})
-count = 0
-
-print("\nDetails of vendors that marked the URL as malicious:")
-for vendor, data in results.items():
-    # Check if the vendor flagged the URL as malicious
-    if data.get('category') == 'malicious' or data.get('result') in ['malware', 'phishing']:
-        print(f"\nVendor: {vendor}")
-        print(f"  Engine Name: {data.get('engine_name')}")
-        print(f"  Method: {data.get('method')}")
-        print(f"  Category: {data.get('category')}")
-        print(f"  Result: {data.get('result')}")
-        if data.get('result') == 'phishing':
-        	count += 1
-
-
-print(count)
-client.close()  
-
+# Check if the string is empty after stripping whitespace
+if not json_str.strip():
+    print("Error: The JSON string is empty.")
+else:
+    try:
+        data = json.loads(json_str.strip())
+        print("Phish:", data["phish"])
+        print("Reasoning:", data["reasoning"])
+    except json.JSONDecodeError as err:
+        print("JSON decode error:", err)
