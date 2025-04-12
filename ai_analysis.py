@@ -30,8 +30,6 @@ def query_chatgpt(url, context):
         phish_value = result_data["phish"]
         reasoning_value = result_data["reasoning"]
 
-        print("Phish:", phish_value)
-        print("Reasoning:", reasoning_value)
         return {"phish": phish_value, "reasoning": reasoning_value}
 
     except Exception as e:

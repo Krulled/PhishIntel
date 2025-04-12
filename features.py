@@ -183,6 +183,8 @@ def VT_url(url):
         if data.get('result') == 'phishing':
             PhishCount += 1
 
+    client.close()
+
     return malicious_count,total_engines,results,PhishCount
 
 
