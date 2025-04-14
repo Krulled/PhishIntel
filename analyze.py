@@ -1,7 +1,7 @@
 import sys
 import json
 from ai_analysis import query_chatgpt
-from features import load_ml_model, analyze_url, VT_url
+from ML_and_VT import load_ml_model, analyze_url, VT_url
 
 def combined_analyze(url):
     model = load_ml_model()

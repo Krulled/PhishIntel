@@ -2,16 +2,18 @@ import openai
 from dotenv import load_dotenv
 import os
 import json
+from urlscan import urlscan
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY", "")
 
 
 def query_chatgpt(url, context):
+    result_data, screenshot = urlscan(url)
     prompt = (
-        "You are a cybersecurity AI. Given the URL '{}', {}. "
+        "You are a cybersecurity AI. Given the URL '{}', {}. Also using this png link of screenshot {}"
         "Output exactly one JSON object with two keys: 'phish' (yes/no) and 'reasoning' (a short, one-sentence explanation). "
         "Your output must not include any markdown formatting or extra text—only the JSON object."
-    ).format(url, context)
+    ).format(url, context, screenshot)
 
     try:
         response = openai.responses.create(
