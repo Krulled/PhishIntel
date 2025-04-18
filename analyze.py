@@ -1,5 +1,7 @@
 import sys
 import json
+import argparse
+import sqlite3
 from ai_analysis import query_chatgpt
 from ML_and_VT import load_ml_model, analyze_url, VT_url
 
@@ -18,8 +20,30 @@ def combined_analyze(url):
 
     return combined_results
 
+def prompt_feedback():
+    while True:
+        resp = input("is this classification correct? [Y/N]: ").strip().lower()
+        if resp in {"y", "n"}:
+            break
+        print("Please enter Y or N.")
+    comments = input("Any comments? (press Enter to skip):  ".strip()
+        return ("Correct" if resp=="y" else "Incorrect"), comments
 
-def main(file_path):
+
+
+def main(file_path, feedback, db_path):
+
+    if feedback:
+        conn = sqlite3.connect(db_path)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS feedback (
+                id INTEGER PRIMARY KEY,
+                url TEXT, predicted_label TEXT, risk_score REAL,
+                analyst_label TEXT, comments TEXT, timestamp DATETIME
+            )
+        """)
+        conn.commit()
+
     # Read the file containing URLs (each URL on a separate line)
     with open(file_path, 'r') as file:
         urls = [line.strip() for line in file if line.strip()]
@@ -32,12 +56,30 @@ def main(file_path):
         print(json.dumps(combined, indent=2, default=str))
         print("=" * 40)
 
+        if feedback:
+            label, comment = prompt_feedback
+            pred = result.get("ml_traditional_analysis")
+            score = result.get("virus_total", {}).get("malicious_count")
+            conn.execute(
+                "INSERT INTO feedback (url,predicted_label,risk_score,analyst_label,comments,timestamp) "
+                "VALUES (?,?,?,?,?,?)",
+                (url, pred, score, label, comment, datetime.now())
+            )
+            conn.commit()
 
-if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("Usage: python analyze.py <file_with_urls.txt>")
-        sys.exit(1)
-    input_file = sys.argv[1]
-    main(input_file)
+    if feedback:
+        conn.close()
+
+
+if __name__ == "__main__":
+    p = argparse.ArgumentParser(description="Analyze URLs (with optional feedback)")
+    p.add_argument("file", help="Text file of URLs, one per line")
+    p.add_argument("--feedback", action="store_true",
+                   help="Prompt and log analyst feedback")
+    p.add_argument("--db", default="feedback.db",
+                   help="SQLite DB path for feedback")
+    args = p.parse_args()
+
+    main(args.file, args.feedback, args.db)
 
 
