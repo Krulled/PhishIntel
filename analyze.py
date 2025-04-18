@@ -2,11 +2,13 @@ import sys
 import json
 import argparse
 import sqlite3
+from datetime import date
 from ai_analysis import query_chatgpt
 from ML_and_VT import load_ml_model, analyze_url, VT_url
+from retrain import fetch_feedback_data, preprocess_feedback_data, retrain_model
 
 def combined_analyze(url):
-    model = load_ml_model()
+    model = load_ml_model()[0]
     traditional_results = analyze_url(url, model)
     ai_result = query_chatgpt(url, "Provide a short phishing assessment.")
     vt_summary = dict(zip(["malicious_count", "total_engines"], VT_url(url)))
@@ -15,7 +17,8 @@ def combined_analyze(url):
         "url": url,
         "ml_traditional_analysis": traditional_results['is_phishing'],
         "virus_total": vt_summary,
-        "ai_analysis": ai_result
+        "ai_analysis": ai_result,
+        "sus_count" : traditional_results['suspicion_score']
     }
 
     return combined_results
@@ -26,8 +29,8 @@ def prompt_feedback():
         if resp in {"y", "n"}:
             break
         print("Please enter Y or N.")
-    comments = input("Any comments? (press Enter to skip):  ".strip()
-        return ("Correct" if resp=="y" else "Incorrect"), comments
+    comments = input("Any comments? (press Enter to skip):  ").strip()
+    return ("Correct" if resp == "y" else "Incorrect", comments)
 
 
 
@@ -38,7 +41,7 @@ def main(file_path, feedback, db_path):
         conn.execute("""
             CREATE TABLE IF NOT EXISTS feedback (
                 id INTEGER PRIMARY KEY,
-                url TEXT, predicted_label TEXT, risk_score REAL,
+                sus INTEGER, predicted_label TEXT, risk_score REAL,
                 analyst_label TEXT, comments TEXT, timestamp DATETIME
             )
         """)
@@ -57,18 +60,28 @@ def main(file_path, feedback, db_path):
         print("=" * 40)
 
         if feedback:
-            label, comment = prompt_feedback
-            pred = result.get("ml_traditional_analysis")
-            score = result.get("virus_total", {}).get("malicious_count")
+            label, comment = prompt_feedback()
+            print(label)
+            pred = combined.get("ml_traditional_analysis")
+            sus = combined.get("sus_count")
+            score = combined.get("virus_total", {}).get("malicious_count")
             conn.execute(
-                "INSERT INTO feedback (url,predicted_label,risk_score,analyst_label,comments,timestamp) "
+                "INSERT INTO feedback (sus,predicted_label,risk_score,analyst_label,comments,timestamp) "
                 "VALUES (?,?,?,?,?,?)",
-                (url, pred, score, label, comment, datetime.now())
+                (sus, pred, score, label, comment, date.today())
             )
             conn.commit()
 
     if feedback:
         conn.close()
+
+    feedback_df = fetch_feedback_data(db_path)
+    X, y = preprocess_feedback_data(feedback_df)
+    model_filename = load_ml_model()[1]
+    trainModel = retrain_model(X, y, model_filename)
+
+    #joblib.dump(trainModel, )
+
 
 
 if __name__ == "__main__":

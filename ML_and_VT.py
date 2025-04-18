@@ -1,6 +1,6 @@
 
 """
-features.py – URL Analysis Module
+ML_and.py – URL Analysis Module
 
 Script allows the extraction of features in a URL, which will be used to train an ML Model 
 """
@@ -84,7 +84,7 @@ def load_ml_model():
     (e.g., using joblib.load or similar)
     """
     model = joblib.load(model_filename)
-    return model
+    return model, model_filename
 
 def ml_predict(features, model):
     suspicious_traits = 0
@@ -196,8 +196,7 @@ def VT_url(url):
 
 def main(file_path):
 
-    model = load_ml_model()
-
+    model = load_ml_model()[0]
     # Read the file containing URLs
     with open(file_path, 'r') as file:
         urls = file.read().splitlines()  # Each line should have one URL
