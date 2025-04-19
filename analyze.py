@@ -1,6 +1,5 @@
 import sys
 import json
-import argparse
 import sqlite3
 from datetime import date
 from ai_analysis import query_chatgpt
@@ -32,7 +31,37 @@ def prompt_feedback():
     comments = input("Any comments? (press Enter to skip):  ").strip()
     return ("Correct" if resp == "y" else "Incorrect", comments)
 
-
+def analyze_and_log(url, db_path=None, feedback=False):
+    """
+    Analyze a URL and optionally log results and feedback to the database.
+    Returns the combined analysis result.
+    If feedback is True and db_path is provided, prompts for feedback and logs to DB.
+    """
+    combined = combined_analyze(url)
+    if feedback and db_path:
+        import sqlite3
+        from datetime import date
+        conn = sqlite3.connect(db_path)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS feedback (
+                id INTEGER PRIMARY KEY,
+                sus INTEGER, predicted_label TEXT, risk_score REAL,
+                analyst_label TEXT, comments TEXT, timestamp DATETIME
+            )
+        """)
+        conn.commit()
+        label, comment = prompt_feedback()
+        pred = combined.get("ml_traditional_analysis")
+        sus = combined.get("sus_count")
+        score = combined.get("virus_total", {}).get("malicious_count")
+        conn.execute(
+            "INSERT INTO feedback (sus,predicted_label,risk_score,analyst_label,comments,timestamp) "
+            "VALUES (?,?,?,?,?,?)",
+            (sus, pred, score, label, comment, date.today())
+        )
+        conn.commit()
+        conn.close()
+    return combined
 
 def main(file_path, feedback, db_path):
 
@@ -85,6 +114,7 @@ def main(file_path, feedback, db_path):
 
 
 if __name__ == "__main__":
+    import argparse
     p = argparse.ArgumentParser(description="Analyze URLs (with optional feedback)")
     p.add_argument("file", help="Text file of URLs, one per line")
     p.add_argument("--feedback", action="store_true",
@@ -94,5 +124,3 @@ if __name__ == "__main__":
     args = p.parse_args()
 
     main(args.file, args.feedback, args.db)
-
-
