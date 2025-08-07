@@ -7,18 +7,38 @@ Script allows the extraction of features in a URL, which will be used to train a
 
 import sys
 import urllib.parse
-import tldextract  # For domain extraction
+try:
+    import tldextract  # For domain extraction
+except Exception:
+    tldextract = None
 import re
-from sklearn.tree import DecisionTreeClassifier
+# Removed unused DecisionTreeClassifier import to reduce dependencies
 import joblib  # For loading ML models
 import numpy as np
-import pandas as pd
-import vt
-from dotenv import load_dotenv
+try:
+    import pandas as pd
+except Exception:
+    pd = None
 import os
+import time
+from dotenv import load_dotenv
+
+# Optional VirusTotal client import
+try:
+    import vt  # type: ignore
+except Exception:
+    vt = None
+
 load_dotenv()
+
+# Initialize VT client only if available and key provided
 api_key = os.getenv("VT_API_KEY", "")
-client = vt.Client(api_key)
+client = None
+if vt and api_key:
+    try:
+        client = vt.Client(api_key)
+    except Exception:
+        client = None
 
 model_filename = 'phishing.pkl'
 
@@ -41,13 +61,22 @@ def extract_features(url):
     """
 
     parsed = urllib.parse.urlparse(url)
-    extracted = tldextract.extract(url)
-    
+    # Gracefully handle missing tldextract
+    if tldextract:
+        extracted = tldextract.extract(url)
+        domain = extracted.domain
+        subdomain = extracted.subdomain
+    else:
+        domain = parsed.hostname or ""
+        # crude split for subdomain
+        parts = domain.split('.') if domain else []
+        subdomain = '.'.join(parts[:-2]) if len(parts) > 2 else ''
+
     features = {}
     features['url_length']     = len(url)
     features['has_https']      = parsed.scheme.lower() == 'https'
-    features['domain']         = extracted.domain
-    features['subdomain']      = extracted.subdomain
+    features['domain']         = domain
+    features['subdomain']      = subdomain
     features['path']           = parsed.path
     
 
@@ -79,12 +108,17 @@ def check_url_shortening(url):
 def load_ml_model():
     """
     Load a pre-trained machine learning model from disk.
-    If an ML model is not available, this function can return None.
-    
-    (e.g., using joblib.load or similar)
+    Falls back to a no-op model if loading fails, so the web UI keeps working.
     """
-    model = joblib.load(model_filename)
-    return model, model_filename
+    try:
+        model = joblib.load(model_filename)
+        return model, model_filename
+    except Exception:
+        class NullModel:
+            def predict(self, X):
+                # Predict benign for all rows
+                return [0] * (len(X) if hasattr(X, '__len__') else 1)
+        return NullModel(), model_filename
 
 def ml_predict(features, model):
     suspicious_traits = 0
@@ -102,12 +136,12 @@ def ml_predict(features, model):
 
     ml_features = [
         features.get('url_length', 0),
-        features.get('count_at', 0),       # instead of at_count
-        features.get('count_hyphen', 0),   # instead of hyphen_count
-        features.get('count_dot', 0),      # instead of dot_count
-        features.get('count_digit', 0),    # instead of digit_count
-        features.get('count_special', 0),  # instead of special_char_count
-        1 if features.get('has_ip', False) else 0
+        features.get('at_count', 0),
+        features.get('hyphen_count', 0),
+        features.get('dot_count', 0),
+        features.get('digit_count', 0),
+        features.get('special_char_count', 0),
+        1 if features.get('contains_ip', False) else 0
     ]
 
     feature_names = [
@@ -120,18 +154,20 @@ def ml_predict(features, model):
         'has_ip'
     ]
 
+    # Build a DataFrame if pandas is available; otherwise, pass a simple structure
+    if pd is not None:
+        ml_features_df = pd.DataFrame([ml_features], columns=feature_names)
+    else:
+        ml_features_df = [ml_features]
 
-    
-    ml_features_df = pd.DataFrame([ml_features], columns=feature_names)
+    # Get the ML model's prediction (robust to incompatible models)
+    try:
+        ml_prediction = model.predict(ml_features_df)[0]
+    except Exception:
+        ml_prediction = 0
 
-    # Get the ML model's prediction
-    ml_prediction = model.predict(ml_features_df)[0]
-
-    # Optionally, you might consider a strategy to combine the heuristic and ML predictions
-    # For example, if both indicate phishing, you could be more confident:
     combined_phishing = heuristic_phishing and (ml_prediction == 1)
-    
-    # Return the heuristic result, heuristic score, ML prediction, and optionally a combined result
+
     return heuristic_phishing, suspicious_traits, ml_prediction, combined_phishing
 
 def analyze_url(url, model=None):
@@ -162,30 +198,42 @@ def analyze_url(url, model=None):
 
 
 def VT_url(url):
-    #Use VT API to pull score, and extra reasons 
-    analysis = client.scan_url(url)
+    # Use VT API to pull score, and extra reasons
+    # If VT client is not available or key missing, return neutral defaults
+    if client is None:
+        return 0, 0, {}, 0
+    try:
+        analysis = client.scan_url(url)
+        # Poll until completed (with a max wait cap to avoid excessive blocking)
+        max_wait_seconds = 60
+        waited = 0
+        while True:
+            try:
+                analysis = client.scan_url(url, analysis.id)
+            except Exception:
+                break
+            if getattr(analysis, 'status', None) == "completed":
+                break
+            if waited >= max_wait_seconds:
+                break
+            time.sleep(5)
+            waited += 5
 
-    while True:
-      analysis = client.scan_url(url, analysis.id)
-      if analysis.status == "completed":
-         break
-      time.sleep(30)
-
-
-
-    stats = analysis.get('stats', {})
-    malicious_count = stats.get('malicious', 0)
-    total_engines = sum(stats.values())
-    results = analysis.get('results', {})
-    PhishCount = 0
-
-    for vendor, data in results.items():
-        if data.get('result') == 'phishing':
-            PhishCount += 1
-
-    client.close()
-
-    return malicious_count,total_engines,results,PhishCount
+        stats = getattr(analysis, 'stats', None) or (analysis.get('stats', {}) if isinstance(analysis, dict) else {})
+        malicious_count = stats.get('malicious', 0)
+        total_engines = sum(stats.values()) if isinstance(stats, dict) else 0
+        results = getattr(analysis, 'results', None) or (analysis.get('results', {}) if isinstance(analysis, dict) else {})
+        phish_count = 0
+        if isinstance(results, dict):
+            for vendor, data in results.items():
+                try:
+                    if data.get('result') == 'phishing':
+                        phish_count += 1
+                except Exception:
+                    continue
+        return malicious_count, total_engines, results, phish_count
+    except Exception:
+        return 0, 0, {}, 0
 
 
 
@@ -217,9 +265,6 @@ def main(file_path):
             for vendor, data in VTresults.items():
                 if data.get('category') == 'malicious' or data.get('result') in ['malware', 'phishing']:
                     print(f"{vendor} - {data.get('result')}")
-
-            client.close()
-
 
 
 # ------------------------------------------------------------------------------

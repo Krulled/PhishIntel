@@ -4,7 +4,14 @@ import sqlite3
 from datetime import date
 from ai_analysis import query_chatgpt
 from ML_and_VT import load_ml_model, analyze_url, VT_url
-from retrain import fetch_feedback_data, preprocess_feedback_data, retrain_model
+
+# Optional retrain imports; not needed for web usage
+try:
+    from retrain import fetch_feedback_data, preprocess_feedback_data, retrain_model
+    RETRAIN_AVAILABLE = True
+except Exception:
+    RETRAIN_AVAILABLE = False
+
 
 def combined_analyze(url):
     model = load_ml_model()[0]
@@ -17,10 +24,11 @@ def combined_analyze(url):
         "ml_traditional_analysis": traditional_results['is_phishing'],
         "virus_total": vt_summary,
         "ai_analysis": ai_result,
-        "sus_count" : traditional_results['suspicion_score']
+        "sus_count": traditional_results['suspicion_score']
     }
 
     return combined_results
+
 
 def prompt_feedback():
     while True:
@@ -30,6 +38,7 @@ def prompt_feedback():
         print("Please enter Y or N.")
     comments = input("Any comments? (press Enter to skip):  ").strip()
     return ("Correct" if resp == "y" else "Incorrect", comments)
+
 
 def analyze_and_log(url, db_path=None, feedback=False):
     """
@@ -62,6 +71,7 @@ def analyze_and_log(url, db_path=None, feedback=False):
         conn.commit()
         conn.close()
     return combined
+
 
 def main(file_path, feedback, db_path):
 
@@ -104,13 +114,12 @@ def main(file_path, feedback, db_path):
     if feedback:
         conn.close()
 
-    feedback_df = fetch_feedback_data(db_path)
-    X, y = preprocess_feedback_data(feedback_df)
-    model_filename = load_ml_model()[1]
-    trainModel = retrain_model(X, y, model_filename)
-
-    #joblib.dump(trainModel, )
-
+    # Only attempt retraining if the module is available
+    if RETRAIN_AVAILABLE:
+        feedback_df = fetch_feedback_data(db_path)
+        X, y = preprocess_feedback_data(feedback_df)
+        model_filename = load_ml_model()[1]
+        retrain_model(X, y, model_filename)
 
 
 if __name__ == "__main__":
