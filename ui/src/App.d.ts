@@ -1,1 +1,2 @@
-export default function App(): import("react/jsx-runtime").JSX.Element;
+import Home from './routes/Home';
+export default Home;
