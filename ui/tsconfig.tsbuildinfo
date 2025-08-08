@@ -1,1 +1,1 @@
-{"root":["./src/App.tsx","./src/main.tsx","./src/vite-env.d.ts"],"version":"5.8.3"}
+{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/cyberloading.tsx","./src/components/detailedresults.tsx","./src/components/evidencetabs.tsx","./src/sections/contentsection.tsx","./src/sections/headerssection.tsx","./src/sections/metasection.tsx","./src/sections/redirectssection.tsx","./src/services/analyzer.ts"],"version":"5.8.3"}

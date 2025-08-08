@@ -107,6 +107,8 @@ function RiskMeter({ score }: { score: number }) {
 }
 
 import EvidenceTabs from './components/EvidenceTabs'
+import CyberLoading from './components/CyberLoading'
+import DetailedResults from './components/DetailedResults'
 import type { SafeAnalysisResult } from './services/analyzer'
 
 import { getAnalysis } from './services/analyzer'
@@ -241,12 +243,17 @@ function Results({ data }: { data: SafeAnalysisResult }) {
 export default function App() {
   const hash = useHash()
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<SafeAnalysisResult | null>(() => {
     if (hash.startsWith('#share=')) {
       try { return JSON.parse(decodeURIComponent(hash.slice('#share='.length))) } catch {}
     }
     return null
   })
+
+  if (loading) {
+    return <CyberLoading message="Analyzing URL for security threats..." />
+  }
 
   return (
     <div className="min-h-full">
@@ -258,25 +265,35 @@ export default function App() {
           <div className="mx-auto">
             <UrlInputForm onSubmit={async (url) => {
               setLoading(true)
-              const res = await getAnalysis(url)
-              setData(res)
-              setLoading(false)
+              setError(null)
+              try {
+                console.log('🔍 Starting analysis for:', url)
+                const res = await getAnalysis(url)
+                setData(res)
+                console.log('✅ Analysis completed:', res)
+              } catch (err) {
+                setError(err instanceof Error ? err.message : 'Analysis failed')
+                console.error('❌ Analysis error:', err)
+              } finally {
+                setLoading(false)
+              }
             }} />
           </div>
         </section>
 
-        {loading && (
-          <div className="mt-8 grid gap-4 md:grid-cols-3" aria-busy="true">
-            <Skeleton className="h-40 md:col-span-2" />
-            <Skeleton className="h-40" />
-            <Skeleton className="h-56 md:col-span-3" />
+        {error && (
+          <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+            <p className="text-red-300 text-sm">{error}</p>
           </div>
         )}
 
         {!loading && data && (
-          <Suspense fallback={<div className="mt-8"><Skeleton className="h-56" /></div>}>
-            <Results data={data} />
-          </Suspense>
+          <>
+            <Suspense fallback={<div className="mt-8"><Skeleton className="h-56" /></div>}>
+              <Results data={data} />
+            </Suspense>
+            <DetailedResults data={data} />
+          </>
         )}
       </main>
     </div>

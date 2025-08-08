@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Environment Test</title>
+</head>
+<body>
+    <h1>Environment Variable Test</h1>
+    <div id="env-test"></div>
+    <script type="module">
+        const apiUrl = import.meta.env.VITE_API_URL;
+        const envDiv = document.getElementById('env-test');
+        envDiv.innerHTML = `
+            <p><strong>VITE_API_URL:</strong> ${apiUrl || 'undefined'}</p>
+            <p><strong>All env vars:</strong> ${JSON.stringify(import.meta.env, null, 2)}</p>
+        `;
+        
+        console.log('Environment variables:', import.meta.env);
+        console.log('VITE_API_URL:', apiUrl);
+        
+        // Test the API call
+        if (apiUrl) {
+            fetch(`${apiUrl}/api/analyze-url`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: 'https://example.com' })
+            })
+            .then(response => {
+                console.log('API test response:', response);
+                envDiv.innerHTML += `<p><strong>API Response Status:</strong> ${response.status}</p>`;
+                return response.json();
+            })
+            .then(data => {
+                console.log('API test data:', data);
+                envDiv.innerHTML += `<p><strong>API Response:</strong> Success - Real data received!</p>`;
+            })
+            .catch(error => {
+                console.error('API test error:', error);
+                envDiv.innerHTML += `<p><strong>API Error:</strong> ${error.message}</p>`;
+            });
+        }
+    </script>
+</body>
+</html>

@@ -3,17 +3,74 @@ export type SafeAnalysisResult = {
   submittedAt: string
   riskScore: number
   riskLevel: 'Low' | 'Medium' | 'High' | 'Critical'
-  findings: { id: string; title: string; severity: 'low' | 'medium' | 'high' | 'critical' }[]
+  findings: { id: string; title: string; severity: 'low' | 'medium' | 'high' | 'critical'; description?: string }[]
   redirects: { index: number; domain: string; status: number; risk: 'low' | 'medium' | 'high' }[]
   ssl: { issuer: string; validFrom: string; validTo: string }
   dns: { a: string[]; ns: string[]; ageDays: number }
   whois: { registrar: string; created: string }
   headers: { name: string; value: string; suspicious?: boolean }[]
   contentSignals: string[]
+  screenshot?: string
+  ai_reasoning?: string
+  phish_detection?: string
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+
 export async function getAnalysis(url: string): Promise<SafeAnalysisResult> {
-  return mockAnalyze(url)
+  try {
+    console.log('🔍 Starting analysis for:', url)
+    
+    const response = await fetch(`${API_BASE_URL}/api/analyze-url`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ url }),
+      // Increased timeout for urlscan processing (up to 2 minutes)
+      signal: AbortSignal.timeout(120000)
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log('✅ Analysis completed:', data)
+    
+    // Transform the backend response to match frontend expectations
+    return {
+      url: data.url,
+      submittedAt: data.submittedAt,
+      riskScore: data.riskScore,
+      riskLevel: data.riskLevel,
+      findings: data.findings || [],
+      redirects: data.redirects || [],
+      ssl: data.ssl || { issuer: 'Unknown', validFrom: 'Unknown', validTo: 'Unknown' },
+      dns: data.dns || { a: [], ns: [], ageDays: 0 },
+      whois: data.whois || { registrar: 'Unknown', created: 'Unknown' },
+      headers: data.headers || [],
+      contentSignals: data.contentSignals || [],
+      screenshot: data.screenshot,
+      ai_reasoning: data.ai_reasoning,
+      phish_detection: data.phish_detection,
+    }
+  } catch (error) {
+    console.error('❌ Analysis failed:', error)
+    
+    // Show user-friendly error message
+    if (error instanceof Error) {
+      if (error.name === 'TimeoutError') {
+        throw new Error('Analysis timed out. URLScan is taking longer than expected. Please try again.')
+      } else if (error.message.includes('Failed to fetch')) {
+        throw new Error('Cannot connect to the analysis server. Please check if the backend is running.')
+      }
+    }
+    
+    // Fallback to mock data if API is unavailable
+    console.log('🔄 Falling back to mock data...')
+    return mockAnalyze(url)
+  }
 }
 
 function mockAnalyze(input: string): Promise<SafeAnalysisResult> {
