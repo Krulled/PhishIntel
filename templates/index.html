@@ -32,7 +32,56 @@
           {% if result.error %}
             <div class="alert alert-danger">Error: {{ result.error }}</div>
           {% else %}
-            <pre>{{ result | tojson(indent=2) }}</pre>
+            {% set ai = result.ai_analysis %}
+            {% if ai and ai.screenshot %}
+              <div class="mb-3">
+                <img src="{{ ai.screenshot }}" alt="URLScan Screenshot" class="img-fluid border rounded">
+              </div>
+            {% endif %}
+
+            {% if ai and ai.urlscan %}
+              <div class="row">
+                <div class="col-md-4">
+                  <h6>SSL</h6>
+                  <ul class="list-unstyled small">
+                    <li><strong>Issuer:</strong> {{ ai.urlscan.ssl.issuer or 'N/A' }}</li>
+                    <li><strong>Valid From:</strong> {{ ai.urlscan.ssl.valid_from or 'N/A' }}</li>
+                    <li><strong>Valid Days:</strong> {{ ai.urlscan.ssl.valid_days or 'N/A' }}</li>
+                    <li><strong>Age (days):</strong> {{ ai.urlscan.ssl.age_days or 'N/A' }}</li>
+                  </ul>
+                </div>
+                <div class="col-md-4">
+                  <h6>DNS</h6>
+                  <ul class="list-unstyled small">
+                    <li><strong>Domain:</strong> {{ ai.urlscan.dns.domain or 'N/A' }}</li>
+                    <li><strong>A:</strong> {{ ai.urlscan.dns.a or 'N/A' }}</li>
+                    <li><strong>PTR:</strong> {{ ai.urlscan.dns.ptr or 'N/A' }}</li>
+                    {% if ai.urlscan.dns.ns %}
+                      <li><strong>NS:</strong>
+                        {% if ai.urlscan.dns.ns is string %}
+                          {{ ai.urlscan.dns.ns }}
+                        {% else %}
+                          <ul class="mb-0">
+                            {% for ns in ai.urlscan.dns.ns %}
+                              <li>{{ ns }}</li>
+                            {% endfor %}
+                          </ul>
+                        {% endif %}
+                      </li>
+                    {% endif %}
+                  </ul>
+                </div>
+                <div class="col-md-4">
+                  <h6>Whois</h6>
+                  <ul class="list-unstyled small">
+                    <li><strong>Registrar:</strong> {{ ai.urlscan.whois.registrar or 'N/A' }}</li>
+                    <li><strong>Created:</strong> {{ ai.urlscan.whois.created or 'N/A' }}</li>
+                  </ul>
+                </div>
+              </div>
+            {% endif %}
+
+            <pre class="mt-3">{{ result | tojson(indent=2) }}</pre>
           {% endif %}
         </div>
       </div>
