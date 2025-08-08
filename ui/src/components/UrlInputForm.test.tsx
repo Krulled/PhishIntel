@@ -3,7 +3,7 @@ import { render, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../App'
 
-// Using the embedded UrlInputForm in App for simplicity
+// Using the embedded UrlInputForm in Home for simplicity
 
 describe('UrlInputForm', () => {
   it('shows error for invalid URL and announces via alert', async () => {
@@ -21,7 +21,6 @@ describe('UrlInputForm', () => {
     const input = (await findAllByLabelText(/url/i))[0]
     await userEvent.type(input, 'https://example.com')
     await userEvent.click(within(form).getByRole('button', { name: /analyze/i }))
-    // analysis results appear
     expect(await (await import('@testing-library/react')).screen.findByLabelText(/analysis results/i, {}, { timeout: 3000 })).toBeInTheDocument()
   })
 })

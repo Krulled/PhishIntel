@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { render } from '@testing-library/react'
 import App from '../App'
 
-// Smoke test RiskMeter via App Results rendering
+// Smoke test RiskMeter via results rendering
 
 describe('RiskMeter', () => {
   it('renders within 0-100 and shows percentage', async () => {
