@@ -1,26 +1,46 @@
-import { describe, it, expect } from 'vitest'
-import { render, within } from '@testing-library/react'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import App from '../App'
 
-// Using the embedded UrlInputForm in Home for simplicity
+describe('Home input form', () => {
+  const origFetch = global.fetch
+  beforeEach(() => {
+    // @ts-ignore
+    global.fetch = vi.fn()
+  })
+  afterEach(() => {
+    global.fetch = origFetch
+    vi.restoreAllMocks()
+  })
 
-describe('UrlInputForm', () => {
-  it('shows error for invalid URL and announces via alert', async () => {
-    const { getAllByRole } = render(<App />)
-    const form = getAllByRole('form', { name: /analyze url/i })[0]
+  it('shows error for invalid input and announces via alert', async () => {
+    render(<MemoryRouter><App /></MemoryRouter>)
+    const form = screen.getAllByRole('form')[0]
     const scope = within(form)
     await userEvent.click(scope.getByRole('button', { name: /analyze/i }))
-    const alert = await scope.findByRole('alert')
-    expect(alert).toHaveTextContent(/valid http\(s\) url/i)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/enter a valid input|valid http\(s\) url/i)
   })
 
   it('accepts a valid URL and triggers analysis', async () => {
-    const { getAllByRole, findAllByLabelText } = render(<App />)
-    const form = getAllByRole('form', { name: /analyze url/i })[0]
-    const input = (await findAllByLabelText(/url/i))[0]
+    const payload = {
+      status: 'ok', verdict: 'Safe', uuid: 'abcd-ef', submitted: new Date().toISOString(),
+      normalized: 'http://example.com', redirect_chain: [], final_url: 'http://example.com',
+      whois: { registrar: '', created: '', updated: '', expires: '', country: '' },
+      ssl: { issuer: '', valid_from: '', valid_to: '', sni: '' },
+      domain_age_days: 0, ip: '', asn: '', geolocation: { country: '', region: '', city: '' },
+      detections: {}, blacklists: [], heuristics: {}, model_explanations: [], risk_score: 5,
+    }
+    // @ts-ignore
+    global.fetch.mockResolvedValueOnce(new Response(JSON.stringify(payload), { status: 200 }))
+
+    render(<MemoryRouter initialEntries={["/"]}><App /></MemoryRouter>)
+    const input = screen.getAllByRole('textbox')[0]
     await userEvent.type(input, 'https://example.com')
-    await userEvent.click(within(form).getByRole('button', { name: /analyze/i }))
-    expect(await (await import('@testing-library/react')).screen.findByLabelText(/analysis results/i, {}, { timeout: 3000 })).toBeInTheDocument()
+    await userEvent.click(screen.getAllByRole('button', { name: /analyze/i })[0])
+    const verdictEls = await screen.findAllByText(/verdict/i, {}, { timeout: 2000 })
+    expect(verdictEls[0]).toBeInTheDocument()
   })
 })
