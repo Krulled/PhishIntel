@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import App from '../App'
+import Home from '../routes/Home'
 
 describe('Keyboard navigation', () => {
   it('tab from input moves to Analyze button', async () => {
-    render(<MemoryRouter><App /></MemoryRouter>)
+    render(<MemoryRouter><Home /></MemoryRouter>)
     const input = screen.getAllByRole('textbox')[0]
     input.focus()
     expect(input).toHaveFocus()

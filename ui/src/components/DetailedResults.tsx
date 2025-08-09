@@ -166,13 +166,7 @@ export default function DetailedResults({ data }: DetailedResultsProps) {
               </div>
             </div>
 
-            {/* Raw JSON Display */}
-            <div className="border border-border rounded-lg p-4">
-              <h4 className="font-semibold text-orange-400 mb-2">Raw JSON Output</h4>
-              <pre className="text-xs bg-gray-900 p-4 rounded overflow-x-auto">
-                <code>{JSON.stringify(detailedAnalysis, null, 2)}</code>
-              </pre>
-            </div>
+
           </div>
         </div>
       )}

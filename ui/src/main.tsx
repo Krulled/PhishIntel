@@ -1,19 +1,12 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import './index.css'
-import { createBrowserRouter, RouterProvider } from 'react-router-dom'
-import Home from './routes/Home'
-import Scan from './routes/Scan'
-
-const router = createBrowserRouter([
-  { path: '/', element: <Home /> },
-  { path: '/scan/:id', element: <Scan /> },
-])
+import App from './App'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <div data-theme="dark" className="min-h-screen bg-[#0b0e16]">
-      <RouterProvider router={router} />
+      <App />
     </div>
   </React.StrictMode>,
 )

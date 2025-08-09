@@ -1,10 +1,12 @@
-from flask import Flask, request, render_template, jsonify
+from flask import Flask, request, render_template, jsonify, send_file
 from flask_cors import CORS
 import os
 import tempfile
+import requests
 from analyze import analyze_and_log
 import uuid as uuid_lib
 from datetime import datetime
+from pathlib import Path
 
 app = Flask(__name__)
 # Allow frontend dev server (5173) to call the API (5000)
@@ -14,6 +16,10 @@ CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://127.0.
 SCAN_CACHE = {}
 RECENT_UUIDS = []
 MAX_RECENT = 20
+
+# Screenshot cache directory
+SCREENSHOT_CACHE_DIR = Path("Data/urlscan_screenshots")
+SCREENSHOT_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -210,6 +216,63 @@ def get_scan(uuid):
 def recent_scans():
     # Return only UUIDs to keep the payload small
     return jsonify({'uuids': RECENT_UUIDS[:5]})
+
+
+@app.route('/api/urlscan/<scan_id>/screenshot')
+def get_urlscan_screenshot(scan_id):
+    """
+    Fetch URLScan screenshot for a given scan ID.
+    Returns the PNG image if available, or 404 JSON if not found.
+    """
+    try:
+        # Check if we have the image cached locally
+        cached_file = SCREENSHOT_CACHE_DIR / f"{scan_id}.png"
+        if cached_file.exists():
+            return send_file(cached_file, mimetype='image/png')
+        
+        # Check if we have scan data with screenshot URL
+        scan_data = SCAN_CACHE.get(scan_id)
+        if not scan_data:
+            return jsonify({'error': 'not_found'}), 404
+            
+        # For this MVP, we'll try to extract screenshot URL from scan data
+        # This is a simplified approach - in production you'd want to store 
+        # the URLScan UUID and fetch fresh screenshots
+        screenshot_url = None
+        
+        # Try to find screenshot URL in various possible locations
+        if hasattr(scan_data, 'get'):
+            # Look for screenshot URL in different possible paths
+            detections = scan_data.get('detections', {})
+            if 'URLScan' in detections:
+                urlscan_data = detections.get('URLScan', {})
+                if isinstance(urlscan_data, dict):
+                    screenshot_url = urlscan_data.get('screenshotURL')
+        
+        # TODO: In a real implementation, you would:
+        # 1. Store the URLScan UUID when analysis is performed
+        # 2. Fetch fresh screenshot from URLScan API using the UUID
+        # 3. Cache the image locally
+        
+        # For MVP, return a placeholder response if no screenshot found
+        if not screenshot_url:
+            return jsonify({'error': 'not_found'}), 404
+            
+        # Fetch the screenshot from URLScan
+        try:
+            response = requests.get(screenshot_url, timeout=10)
+            if response.status_code == 200:
+                # Cache the image
+                with open(cached_file, 'wb') as f:
+                    f.write(response.content)
+                return send_file(cached_file, mimetype='image/png')
+            else:
+                return jsonify({'error': 'not_found'}), 404
+        except Exception:
+            return jsonify({'error': 'not_found'}), 404
+            
+    except Exception as e:
+        return jsonify({'error': 'server_error', 'message': str(e)}), 500
 
 
 if __name__ == '__main__':

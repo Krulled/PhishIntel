@@ -1,14 +1,23 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useLocation, Link } from 'react-router-dom'
 import { getScan, type ScanResult } from '../services/apiClient'
 import ValuesView from '../components/ValuesView'
 
 export default function Scan() {
   const { id } = useParams()
+  const location = useLocation()
   const [data, setData] = useState<ScanResult | null>(null)
   const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
+    // Check if we have result data passed via navigation state (from Queue)
+    const stateResult = location.state?.scanResult
+    if (stateResult) {
+      setData(stateResult)
+      return
+    }
+
+    // Otherwise fetch by scan ID
     let cancelled = false
     ;(async () => {
       if (!id) return
@@ -19,7 +28,7 @@ export default function Scan() {
       }
     })()
     return () => { cancelled = true }
-  }, [id])
+  }, [id, location.state])
 
   if (notFound) {
     return (

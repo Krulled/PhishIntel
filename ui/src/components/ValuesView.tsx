@@ -1,5 +1,6 @@
 import React from 'react'
 import { normalizeScan, flattenForTable, type NormalizedScan } from '../services/valuesNormalizer'
+import UrlscanScreenshot from './UrlscanScreenshot'
 
 export default function ValuesView({ raw }: { raw: any }) {
   const norm: NormalizedScan = normalizeScan(raw)
@@ -8,6 +9,9 @@ export default function ValuesView({ raw }: { raw: any }) {
 
   const submittedReadable = norm.createdAt?.split(' · ')[1] || 'n/a'
   const headerLine = `Scan ${norm.id || 'n/a'} — ${norm.url || 'n/a'} (Submitted: ${submittedReadable})`
+
+  // Extract scan ID for screenshot component
+  const scanId = raw?.uuid || raw?.id || raw?.scan_id || raw?.scanId || norm.id || ''
 
   return (
     <section className="space-y-3">
@@ -70,11 +74,8 @@ export default function ValuesView({ raw }: { raw: any }) {
         <div className="text-sm text-gray-300">Status: {norm.ssl.status || 'n/a'}</div>
       </div>
 
-      {/* Evidence / Map section */}
-      <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-        <div className="mb-1 text-sm font-medium">Evidence/Map</div>
-        <div className="text-sm text-gray-300">Evidence: n/a</div>
-      </div>
+      {/* URLScan Screenshot section (replaces Evidence/Map) */}
+      {scanId && <UrlscanScreenshot scanId={scanId} />}
 
       {/* All Values (Flattened) table */}
       <div className="rounded-lg border border-white/10 bg-black/20 p-3">
