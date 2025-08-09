@@ -1,9 +1,35 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || 'http://localhost:5000';
+function getToken() {
+    try {
+        return localStorage.getItem('phishintel_token');
+    }
+    catch {
+        return null;
+    }
+}
 function toCurl(url, body) {
     return `curl -sS -X POST '${url}' -H 'Content-Type: application/json' --data '${JSON.stringify(body)}'`;
 }
 async function doFetch(input, init) {
-    return fetch(input, { ...init });
+    const token = getToken();
+    const headers = { ...(init?.headers) };
+    if (token)
+        headers['Authorization'] = `Bearer ${token}`;
+    return fetch(input, { ...init, headers });
+}
+export async function login(username, password) {
+    const endpoint = `${API_BASE_URL}/api/auth/login`;
+    const res = await doFetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    });
+    if (res.status === 501)
+        return { disabled: true };
+    if (!res.ok)
+        throw new Error(`Login failed (${res.status})`);
+    const data = await res.json();
+    return data;
 }
 export async function analyze(inputValue) {
     const endpoint = `${API_BASE_URL}/analyze`;

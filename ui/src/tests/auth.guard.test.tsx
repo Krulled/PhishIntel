@@ -8,8 +8,8 @@ function setFlag(val: boolean) {
 }
 
 describe('Guard', () => {
-  const Protected = () => <div>Protected</div>
-  const Login = () => <div>Login</div>
+  const Protected = () => <div data-testid="protected">Protected</div>
+  const Login = () => <div data-testid="login">Login</div>
 
   beforeEach(() => {
     localStorage.clear()
@@ -26,7 +26,8 @@ describe('Guard', () => {
       { path: '/', element: <Guard><Protected /></Guard> },
     ], { initialEntries: ['/'] })
     render(<RouterProvider router={router} />)
-    expect(await screen.findByText('Login')).toBeInTheDocument()
+    expect(await screen.findByTestId('login')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/login')
   })
 
   it('renders protected when token exists', async () => {
@@ -37,7 +38,7 @@ describe('Guard', () => {
       { path: '/', element: <Guard><Protected /></Guard> },
     ], { initialEntries: ['/'] })
     render(<RouterProvider router={router} />)
-    expect(await screen.findByText('Protected')).toBeInTheDocument()
+    expect(await screen.findByTestId('protected')).toBeInTheDocument()
   })
 
   it('does nothing when disabled', async () => {
@@ -47,6 +48,6 @@ describe('Guard', () => {
       { path: '/', element: <Guard><Protected /></Guard> },
     ], { initialEntries: ['/'] })
     render(<RouterProvider router={router} />)
-    expect(await screen.findByText('Protected')).toBeInTheDocument()
+    expect(await screen.findByTestId('protected')).toBeInTheDocument()
   })
 })
