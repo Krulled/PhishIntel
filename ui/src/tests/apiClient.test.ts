@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { analyze, type ScanResult } from '../services/apiClient'
+import * as api from '../services/apiClient'
 
 const okResult: ScanResult = {
   status: 'ok', verdict: 'Safe', uuid: '1234', submitted: '2025-01-01T00:00:00Z',
@@ -45,5 +46,35 @@ describe('apiClient.analyze', () => {
       .mockResolvedValueOnce(new Response('fail', { status: 500 }))
       .mockResolvedValueOnce(new Response('fail', { status: 500 }))
     await expect(analyze('http://bad.test')).rejects.toHaveProperty('curl')
+  })
+})
+
+describe('apiClient auth behavior (additive)', () => {
+  const originalFetch = global.fetch
+  beforeEach(() => {
+    // @ts-ignore
+    global.fetch = vi.fn(async (input: any, init?: any) => new Response(JSON.stringify({ ok: true }), { status: 200 }))
+    localStorage.clear()
+  })
+  afterEach(() => {
+    global.fetch = originalFetch
+    vi.restoreAllMocks()
+    localStorage.clear()
+  })
+
+  it('attaches Authorization header when token exists', async () => {
+    localStorage.setItem('phishintel_token', 'abc')
+    await api.fetchRecentRemote()
+    // @ts-ignore
+    const call = (global.fetch as any).mock.calls[0]
+    const headers = call[1]?.headers || {}
+    expect(headers.Authorization).toBe('Bearer abc')
+  })
+
+  it('login returns disabled on 501', async () => {
+    // @ts-ignore
+    global.fetch = vi.fn(async () => new Response(JSON.stringify({ error: 'auth_disabled' }), { status: 501 }))
+    const res = await api.login('u','p')
+    expect(res.disabled).toBe(true)
   })
 })
