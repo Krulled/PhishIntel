@@ -16,6 +16,10 @@ describe('Home input form', () => {
   })
 
   it('shows error for invalid input and announces via alert', async () => {
+    // Prime recent list request
+    // @ts-ignore
+    global.fetch.mockResolvedValueOnce(new Response(JSON.stringify({ uuids: [] }), { status: 200 }))
+
     render(<MemoryRouter><App /></MemoryRouter>)
     const form = screen.getAllByRole('form')[0]
     const scope = within(form)
@@ -25,6 +29,10 @@ describe('Home input form', () => {
   })
 
   it('accepts a valid URL and triggers analysis', async () => {
+    // Prime recent list request
+    // @ts-ignore
+    global.fetch.mockResolvedValueOnce(new Response(JSON.stringify({ uuids: [] }), { status: 200 }))
+
     const payload = {
       status: 'ok', verdict: 'Safe', uuid: 'abcd-ef', submitted: new Date().toISOString(),
       normalized: 'http://example.com', redirect_chain: [], final_url: 'http://example.com',

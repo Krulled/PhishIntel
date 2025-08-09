@@ -9,6 +9,10 @@ describe('RiskMeter', () => {
   afterEach(() => { global.fetch = origFetch; vi.restoreAllMocks() })
 
   it('renders a verdict after analysis', async () => {
+    // Prime recent list request
+    // @ts-ignore
+    global.fetch.mockResolvedValueOnce(new Response(JSON.stringify({ uuids: [] }), { status: 200 }))
+
     const payload = {
       status: 'ok', verdict: 'Malicious', uuid: 'abcd-ef', submitted: new Date().toISOString(),
       normalized: 'http://suspicious.example', redirect_chain: [], final_url: 'http://suspicious.example',
