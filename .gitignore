@@ -80,3 +80,6 @@ config/secrets.yml
 secrets.json
 config.json
 credentials.json
+
+# Local Python config for secrets (keep in code locally, not committed)
+config_local.py

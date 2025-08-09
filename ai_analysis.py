@@ -8,7 +8,15 @@ import json
 from urlscan import urlscan
 
 load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+
+# Optional local override for secrets without committing them
+# Define OPENAI_API_KEY in a local file named config_local.py to keep it out of git
+try:  # type: ignore[unused-ignore]
+    from config_local import OPENAI_API_KEY as OPENAI_API_KEY_LOCAL  # pyright: ignore[reportMissingImports]
+except Exception:
+    OPENAI_API_KEY_LOCAL = None
+
+OPENAI_API_KEY = (OPENAI_API_KEY_LOCAL or os.getenv("OPENAI_API_KEY", ""))
 if openai is not None:
     try:
         openai.api_key = OPENAI_API_KEY
