@@ -161,10 +161,7 @@ export default function Home() {
                 </ul>
               </div>
             )}
-            <details className="mt-3">
-              <summary className="cursor-pointer select-none text-sm text-gray-200">View raw JSON</summary>
-              <pre className="mt-2 overflow-x-auto rounded bg-black/60 p-3 text-xs text-gray-200">{JSON.stringify(data, null, 2)}</pre>
-            </details>
+            {/* raw JSON removed per reporting constraints */}
             <div className="mt-4 flex gap-2">
               <button className="rounded bg-white/10 px-3 py-2 text-sm hover:bg-white/15" onClick={()=>{
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
