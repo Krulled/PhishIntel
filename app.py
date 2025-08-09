@@ -1,4 +1,5 @@
 from flask import Flask, request, render_template, jsonify
+from flask_cors import CORS
 import os
 import tempfile
 from analyze import analyze_and_log
@@ -6,6 +7,8 @@ import uuid as uuid_lib
 from datetime import datetime
 
 app = Flask(__name__)
+# Allow frontend dev server (5173) to call the API (5000)
+CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}})
 
 # In-memory cache for scan results (per-process)
 SCAN_CACHE = {}
