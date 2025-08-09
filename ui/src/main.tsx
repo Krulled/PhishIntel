@@ -12,7 +12,7 @@ const router = createBrowserRouter([
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <div data-theme="dark">
+    <div data-theme="dark" className="min-h-screen bg-[#0b0e16]">
       <RouterProvider router={router} />
     </div>
   </React.StrictMode>,

@@ -9,4 +9,4 @@ const router = createBrowserRouter([
     { path: '/', element: _jsx(Home, {}) },
     { path: '/scan/:id', element: _jsx(Scan, {}) },
 ]);
-ReactDOM.createRoot(document.getElementById('root')).render(_jsx(React.StrictMode, { children: _jsx("div", { "data-theme": "dark", children: _jsx(RouterProvider, { router: router }) }) }));
+ReactDOM.createRoot(document.getElementById('root')).render(_jsx(React.StrictMode, { children: _jsx("div", { "data-theme": "dark", className: "min-h-screen bg-[#0b0e16]", children: _jsx(RouterProvider, { router: router }) }) }));

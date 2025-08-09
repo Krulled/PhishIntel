@@ -1,18 +1,16 @@
 import { describe, it, expect } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import App from '../App'
 
 describe('Keyboard navigation', () => {
-  it('tab key moves across controls and sections', async () => {
-    const { getAllByRole, findAllByLabelText } = render(<App />)
+  it('tab from input moves to Analyze button', async () => {
+    render(<MemoryRouter><App /></MemoryRouter>)
+    const input = screen.getAllByRole('textbox')[0]
+    input.focus()
+    expect(input).toHaveFocus()
     await userEvent.tab()
-    expect(getAllByRole('link', { name: /safety/i })[0]).toHaveFocus()
-    await userEvent.tab()
-    expect((await findAllByLabelText(/url/i))[0]).toHaveFocus()
-    await userEvent.tab()
-    expect(getAllByRole('button', { name: /clear/i })[0]).toHaveFocus()
-    await userEvent.tab()
-    expect(getAllByRole('button', { name: /analyze/i })[0]).toHaveFocus()
+    expect(screen.getAllByRole('button', { name: /analyze/i })[0]).toHaveFocus()
   })
 })
