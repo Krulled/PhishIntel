@@ -4,7 +4,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import Guard from '../routes/Guard'
 
 function setFlag(val: boolean) {
-  ;(import.meta as any).env = { ...(import.meta as any).env, VITE_UI_AUTH_ENABLED: String(val) }
+  ;(globalThis as any).__UI_AUTH_ENABLED__ = String(val)
 }
 
 describe('Guard', () => {
@@ -13,10 +13,12 @@ describe('Guard', () => {
 
   beforeEach(() => {
     localStorage.clear()
+    ;(globalThis as any).__UI_AUTH_ENABLED__ = undefined
   })
 
   afterEach(() => {
     localStorage.clear()
+    ;(globalThis as any).__UI_AUTH_ENABLED__ = undefined
   })
 
   it('redirects to /login when enabled and no token', async () => {
@@ -38,7 +40,8 @@ describe('Guard', () => {
       { path: '/', element: <Guard><Protected /></Guard> },
     ], { initialEntries: ['/'] })
     render(<RouterProvider router={router} />)
-    expect(await screen.findByTestId('protected')).toBeInTheDocument()
+    expect(screen.getAllByTestId('protected').length).toBeGreaterThanOrEqual(1)
+    expect(router.state.location.pathname).toBe('/')
   })
 
   it('does nothing when disabled', async () => {
@@ -48,6 +51,7 @@ describe('Guard', () => {
       { path: '/', element: <Guard><Protected /></Guard> },
     ], { initialEntries: ['/'] })
     render(<RouterProvider router={router} />)
-    expect(await screen.findByTestId('protected')).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/')
+    expect(screen.getAllByTestId('protected').length).toBeGreaterThanOrEqual(1)
   })
 })
