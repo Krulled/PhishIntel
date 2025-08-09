@@ -2,12 +2,12 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 export async function getAnalysis(url) {
     try {
         console.log('🔍 Starting analysis for:', url);
-        const response = await fetch(`${API_BASE_URL}/api/analyze-url`, {
+        const response = await fetch(`${API_BASE_URL}/analyze`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ url }),
+            body: JSON.stringify({ input: url }),
             // Increased timeout for urlscan processing (up to 2 minutes)
             signal: AbortSignal.timeout(120000)
         });

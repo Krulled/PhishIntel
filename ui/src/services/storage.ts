@@ -1,25 +1,39 @@
-import { openDB } from 'idb'
-import type { SafeAnalysisResult } from './analyzer'
+import type { AnalysisResponse } from './apiClient'
 
-const DB_NAME = 'phishintel-db'
-const STORE = 'results'
+const RECENT_KEY = 'phishintel:recent'
+const PREFIX = 'phishintel:result:'
 
-async function db() {
-  return openDB(DB_NAME, 1, {
-    upgrade(database) {
-      if (!database.objectStoreNames.contains(STORE)) {
-        database.createObjectStore(STORE)
-      }
-    },
+function getRecentList(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_KEY)
+    const list = raw ? JSON.parse(raw) as string[] : []
+    return Array.isArray(list) ? list : []
+  } catch { return [] }
+}
+
+function setRecentList(list: string[]) {
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, 10))) } catch {}
+}
+
+export function saveResult(result: AnalysisResponse) {
+  try {
+    localStorage.setItem(PREFIX + result.uuid, JSON.stringify(result))
+    const list = getRecentList().filter(id => id !== result.uuid)
+    list.unshift(result.uuid)
+    setRecentList(list)
+  } catch {}
+}
+
+export function getCached(uuid: string): AnalysisResponse | null {
+  try {
+    const raw = localStorage.getItem(PREFIX + uuid)
+    return raw ? JSON.parse(raw) as AnalysisResponse : null
+  } catch { return null }
+}
+
+export function getRecent(n = 5): { uuid: string; verdict: string; submitted: string }[] {
+  return getRecentList().slice(0, n).map((id) => {
+    const cached = getCached(id)
+    return { uuid: id, verdict: cached?.verdict || 'Safe', submitted: cached?.submitted || '' }
   })
-}
-
-export async function saveResult(id: string, result: SafeAnalysisResult): Promise<void> {
-  const d = await db()
-  await d.put(STORE, result, id)
-}
-
-export async function getResult(id: string): Promise<SafeAnalysisResult | undefined> {
-  const d = await db()
-  return d.get(STORE, id)
 }

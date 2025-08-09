@@ -1,19 +1,14 @@
 import React from 'react'
-import ReactDOM from 'react-dom/client'
-import './index.css'
+import { createRoot } from 'react-dom/client'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
 import Home from './routes/Home'
 import Scan from './routes/Scan'
+import './index.css'
 
 const router = createBrowserRouter([
   { path: '/', element: <Home /> },
-  { path: '/scan/:id', element: <Scan /> },
+  { path: '/scan/:uuid', element: <Scan /> },
 ])
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <div data-theme="dark">
-      <RouterProvider router={router} />
-    </div>
-  </React.StrictMode>,
-)
+const el = document.getElementById('root')!
+createRoot(el).render(<React.StrictMode><RouterProvider router={router} /></React.StrictMode>)

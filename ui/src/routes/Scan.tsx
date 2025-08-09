@@ -1,105 +1,133 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import type { SafeAnalysisResult } from '../services/analyzer'
-import EvidenceTabs from '../components/EvidenceTabs'
-import DetailedResults from '../components/DetailedResults'
-import { getResult } from '../services/storage'
+import { getCached, saveResult } from '../services/storage'
+import { getScan, type AnalysisResponse } from '../services/apiClient'
 
-function RiskBadge({ level }: { level: 'Low' | 'Medium' | 'High' | 'Critical' }) {
-  const cls = level === 'Low' ? 'bg-emerald-500/20 text-emerald-300' : level === 'Medium' ? 'bg-amber-500/20 text-amber-300' : level === 'High' ? 'bg-red-500/20 text-red-300' : 'bg-red-600/30 text-red-200'
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{level}</span>
+function Badge({ verdict }: { verdict: AnalysisResponse['verdict'] }) {
+  const cls = verdict === 'Safe' ? 'safe' : verdict === 'Suspicious' ? 'susp' : 'mal'
+  return <span className={`badge ${cls}`}>{verdict}</span>
 }
 
-function RiskMeter({ score }: { score: number }) {
-  const pct = Math.max(0, Math.min(100, score))
+function Collapsible({ title, children }: { title: string; children: any }) {
+  const [open, setOpen] = useState(false)
   return (
-    <div className="w-full" aria-label="Risk meter" role="img" aria-roledescription="gauge" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
-      <div className="mb-2 flex items-center justify-between text-xs text-gray-400">
-        <span>Risk score</span>
-        <span>{pct}</span>
-      </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-amber-500 to-red-500" style={{ width: `${pct}%` }} />
-      </div>
+    <div className="card">
+      <button className="collapse-toggle" aria-expanded={open} onClick={() => setOpen(v => !v)}>{title}</button>
+      <div className={open ? 'collapse-open' : 'collapse-closed'}>{open ? children : <div className="skeleton h-6" />}</div>
     </div>
   )
 }
 
 export default function Scan() {
-  const { id } = useParams()
-  const [data, setData] = useState<SafeAnalysisResult | null>(null)
+  const { uuid } = useParams()
+  const [data, setData] = useState<AnalysisResponse | null>(null)
   const [notFound, setNotFound] = useState(false)
-
-  const hashPayload = useMemo(() => {
-    if (location.hash.startsWith('#h=')) {
-      try {
-        const decoded = atob(decodeURIComponent(location.hash.slice(3)))
-        return JSON.parse(decoded) as SafeAnalysisResult
-      } catch {}
-    }
-    return null
-  }, [])
 
   useEffect(() => {
     let cancelled = false
+    if (!uuid) return
+    const cached = getCached(uuid)
+    if (cached) setData(cached)
     ;(async () => {
-      if (hashPayload && !cancelled) {
-        setData(hashPayload)
-        return
-      }
-      if (id) {
-        const res = await getResult(id)
-        if (res && !cancelled) setData(res)
-        if (!res && !cancelled) setNotFound(true)
+      try {
+        const remote = await getScan(uuid)
+        if (!cancelled) { setData(remote); saveResult(remote) }
+      } catch (e) {
+        if (!cached && !cancelled) setNotFound(true)
       }
     })()
     return () => { cancelled = true }
-  }, [id, hashPayload])
+  }, [uuid])
 
   if (notFound) {
     return (
-      <main className="container py-16 text-center">
-        <h1 className="text-2xl font-semibold mb-4">Scan not found</h1>
-        <p className="text-gray-400 mb-6">We could not load that scan.</p>
-        <Link className="btn btn-primary" to="/">Back to home</Link>
+      <main className="container p-gap text-center">
+        <h1 className="text-subtitle">Scan not found</h1>
+        <Link className="link" to="/">Back</Link>
       </main>
     )
   }
 
   if (!data) {
-    return <main className="container py-16 text-center"><div className="h-56 animate-pulse rounded-xl bg-muted" /></main>
+    return <main className="container p-gap"><div className="skeleton h-32" /></main>
   }
 
-  const baseUrl = `${location.origin}/scan/${id}`
-  const shareHash = `#h=${encodeURIComponent(btoa(JSON.stringify(data)))}`
-  const shareUrl = shareHash.length < 1800 ? `${location.origin}/scan/${id || ''}${shareHash}` : baseUrl
+  const exportReport = () => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `phishintel_report_${data.uuid}.json`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
 
   return (
-    <main className="container space-y-6 py-8">
-      <section aria-label="Analysis results">
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="card p-4 space-y-3 md:col-span-2">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Risk Summary</h2>
-              <RiskBadge level={data.riskLevel} />
-            </div>
-            <RiskMeter score={data.riskScore} />
-            <p className="text-sm text-gray-300">Analyzed {data.url} at {new Date(data.submittedAt).toLocaleString()}</p>
-            <div className="flex gap-2">
-              <button className="btn btn-secondary" onClick={() => navigator.clipboard.writeText(shareUrl)} aria-label="Copy link">Copy link</button>
-              <button className="btn btn-secondary" onClick={() => navigator.clipboard.writeText(JSON.stringify(data, null, 2))} aria-label="Copy report">Copy report</button>
-            </div>
-          </div>
+    <main className="container p-gap space-y-gap">
+      <header className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Badge verdict={data.verdict} />
+          <div className="text-sm text-muted">Risk {data.risk_score}</div>
+        </div>
+        <button className="btn btn-secondary" onClick={exportReport}>Export Report</button>
+      </header>
+
+      <section className="card p-3">
+        <div className="text-sm">{data.final_url || data.normalized}</div>
+        <div className="quickfacts">
+          <div><span>Domain age</span><strong>{data.domain_age_days ?? '—'}</strong></div>
+          <div><span>Host IP</span><strong>{data.ip ?? '—'}</strong></div>
+          <div><span>ASN</span><strong>{data.asn ?? '—'}</strong></div>
         </div>
       </section>
 
-      <EvidenceTabs data={data} />
-      <DetailedResults data={data} />
+      <Collapsible title="Redirect chain">
+        {data.redirect_chain.length ? (
+          <ol className="list">
+            {data.redirect_chain.map((u, i) => <li key={i}>{u}</li>)}
+          </ol>
+        ) : <p className="text-muted">No redirects recorded.</p>}
+      </Collapsible>
 
-      <div className="card p-4">
-        <h3 className="text-sm font-medium">Disclosure</h3>
-        <p className="text-sm text-gray-300">PhishIntel offers guidance and is not a substitute for enterprise policy.</p>
-      </div>
+      <Collapsible title="WHOIS">
+        <pre className="pre">
+{JSON.stringify(data.whois, null, 2)}
+        </pre>
+      </Collapsible>
+
+      <Collapsible title="SSL/TLS">
+        <pre className="pre">
+{JSON.stringify(data.ssl, null, 2)}
+        </pre>
+      </Collapsible>
+
+      <Collapsible title="Detections">
+        {Object.keys(data.detections).length ? (
+          <ul className="list">
+            {Object.entries(data.detections).map(([k, v]) => <li key={k}><strong>{k}:</strong> {v}</li>)}
+          </ul>
+        ) : <p className="text-muted">No detections.</p>}
+      </Collapsible>
+
+      <section className="card p-3">
+        <h2 className="text-sm font-medium">Model notes</h2>
+        {data.model_explanations.length ? (
+          <ul className="list">
+            {data.model_explanations.map((m, i) => <li key={i}>{m}</li>)}
+          </ul>
+        ) : <p className="text-muted">No explanations provided.</p>}
+      </section>
+
+      <section className="card p-3">
+        <h2 className="text-sm font-medium">Graph</h2>
+        <div className="graph" aria-hidden="true" />
+      </section>
+
+      <details className="card p-3">
+        <summary>Code view</summary>
+        <pre className="pre" aria-label="Raw JSON">
+{JSON.stringify(data, null, 2)}
+        </pre>
+      </details>
     </main>
   )
 }

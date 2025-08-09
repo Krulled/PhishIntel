@@ -1,56 +1,55 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import EvidenceTabs from '../components/EvidenceTabs';
-import DetailedResults from '../components/DetailedResults';
-import { getResult } from '../services/storage';
-function RiskBadge({ level }) {
-    const cls = level === 'Low' ? 'bg-emerald-500/20 text-emerald-300' : level === 'Medium' ? 'bg-amber-500/20 text-amber-300' : level === 'High' ? 'bg-red-500/20 text-red-300' : 'bg-red-600/30 text-red-200';
-    return _jsx("span", { className: `rounded-full px-2 py-0.5 text-xs font-medium ${cls}`, children: level });
+import { getCached, saveResult } from '../services/storage';
+import { getScan } from '../services/apiClient';
+function Badge({ verdict }) {
+    const cls = verdict === 'Safe' ? 'safe' : verdict === 'Suspicious' ? 'susp' : 'mal';
+    return _jsx("span", { className: `badge ${cls}`, children: verdict });
 }
-function RiskMeter({ score }) {
-    const pct = Math.max(0, Math.min(100, score));
-    return (_jsxs("div", { className: "w-full", "aria-label": "Risk meter", role: "img", "aria-roledescription": "gauge", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": pct, children: [_jsxs("div", { className: "mb-2 flex items-center justify-between text-xs text-gray-400", children: [_jsx("span", { children: "Risk score" }), _jsx("span", { children: pct })] }), _jsx("div", { className: "h-2 w-full overflow-hidden rounded-full bg-muted", children: _jsx("div", { className: "h-full rounded-full bg-gradient-to-r from-emerald-500 via-amber-500 to-red-500", style: { width: `${pct}%` } }) })] }));
+function Collapsible({ title, children }) {
+    const [open, setOpen] = useState(false);
+    return (_jsxs("div", { className: "card", children: [_jsx("button", { className: "collapse-toggle", "aria-expanded": open, onClick: () => setOpen(v => !v), children: title }), _jsx("div", { className: open ? 'collapse-open' : 'collapse-closed', children: open ? children : _jsx("div", { className: "skeleton h-6" }) })] }));
 }
 export default function Scan() {
-    const { id } = useParams();
+    const { uuid } = useParams();
     const [data, setData] = useState(null);
     const [notFound, setNotFound] = useState(false);
-    const hashPayload = useMemo(() => {
-        if (location.hash.startsWith('#h=')) {
-            try {
-                const decoded = atob(decodeURIComponent(location.hash.slice(3)));
-                return JSON.parse(decoded);
-            }
-            catch { }
-        }
-        return null;
-    }, []);
     useEffect(() => {
         let cancelled = false;
+        if (!uuid)
+            return;
+        const cached = getCached(uuid);
+        if (cached)
+            setData(cached);
         (async () => {
-            if (hashPayload && !cancelled) {
-                setData(hashPayload);
-                return;
+            try {
+                const remote = await getScan(uuid);
+                if (!cancelled) {
+                    setData(remote);
+                    saveResult(remote);
+                }
             }
-            if (id) {
-                const res = await getResult(id);
-                if (res && !cancelled)
-                    setData(res);
-                if (!res && !cancelled)
+            catch (e) {
+                if (!cached && !cancelled)
                     setNotFound(true);
             }
         })();
         return () => { cancelled = true; };
-    }, [id, hashPayload]);
+    }, [uuid]);
     if (notFound) {
-        return (_jsxs("main", { className: "container py-16 text-center", children: [_jsx("h1", { className: "text-2xl font-semibold mb-4", children: "Scan not found" }), _jsx("p", { className: "text-gray-400 mb-6", children: "We could not load that scan." }), _jsx(Link, { className: "btn btn-primary", to: "/", children: "Back to home" })] }));
+        return (_jsxs("main", { className: "container p-gap text-center", children: [_jsx("h1", { className: "text-subtitle", children: "Scan not found" }), _jsx(Link, { className: "link", to: "/", children: "Back" })] }));
     }
     if (!data) {
-        return _jsx("main", { className: "container py-16 text-center", children: _jsx("div", { className: "h-56 animate-pulse rounded-xl bg-muted" }) });
+        return _jsx("main", { className: "container p-gap", children: _jsx("div", { className: "skeleton h-32" }) });
     }
-    const baseUrl = `${location.origin}/scan/${id}`;
-    const shareHash = `#h=${encodeURIComponent(btoa(JSON.stringify(data)))}`;
-    const shareUrl = shareHash.length < 1800 ? `${location.origin}/scan/${id || ''}${shareHash}` : baseUrl;
-    return (_jsxs("main", { className: "container space-y-6 py-8", children: [_jsx("div", { className: "grid gap-4 md:grid-cols-3", children: _jsxs("div", { className: "card p-4 space-y-3 md:col-span-2", children: [_jsxs("div", { className: "flex items-center justify-between", children: [_jsx("h2", { className: "text-lg font-semibold", children: "Risk Summary" }), _jsx(RiskBadge, { level: data.riskLevel })] }), _jsx(RiskMeter, { score: data.riskScore }), _jsxs("p", { className: "text-sm text-gray-300", children: ["Analyzed ", data.url, " at ", new Date(data.submittedAt).toLocaleString()] }), _jsxs("div", { className: "flex gap-2", children: [_jsx("button", { className: "btn btn-secondary", onClick: () => navigator.clipboard.writeText(shareUrl), "aria-label": "Copy link", children: "Copy link" }), _jsx("button", { className: "btn btn-secondary", onClick: () => navigator.clipboard.writeText(JSON.stringify(data, null, 2)), "aria-label": "Copy report", children: "Copy report" })] })] }) }), _jsx(EvidenceTabs, { data: data }), _jsx(DetailedResults, { data: data }), _jsxs("div", { className: "card p-4", children: [_jsx("h3", { className: "text-sm font-medium", children: "Disclosure" }), _jsx("p", { className: "text-sm text-gray-300", children: "PhishIntel offers guidance and is not a substitute for enterprise policy." })] })] }));
+    const exportReport = () => {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `phishintel_report_${data.uuid}.json`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    };
+    return (_jsxs("main", { className: "container p-gap space-y-gap", children: [_jsxs("header", { className: "flex items-center justify-between", children: [_jsxs("div", { className: "flex items-center gap-2", children: [_jsx(Badge, { verdict: data.verdict }), _jsxs("div", { className: "text-sm text-muted", children: ["Risk ", data.risk_score] })] }), _jsx("button", { className: "btn btn-secondary", onClick: exportReport, children: "Export Report" })] }), _jsxs("section", { className: "card p-3", children: [_jsx("div", { className: "text-sm", children: data.final_url || data.normalized }), _jsxs("div", { className: "quickfacts", children: [_jsxs("div", { children: [_jsx("span", { children: "Domain age" }), _jsx("strong", { children: data.domain_age_days ?? '—' })] }), _jsxs("div", { children: [_jsx("span", { children: "Host IP" }), _jsx("strong", { children: data.ip ?? '—' })] }), _jsxs("div", { children: [_jsx("span", { children: "ASN" }), _jsx("strong", { children: data.asn ?? '—' })] })] })] }), _jsx(Collapsible, { title: "Redirect chain", children: data.redirect_chain.length ? (_jsx("ol", { className: "list", children: data.redirect_chain.map((u, i) => _jsx("li", { children: u }, i)) })) : _jsx("p", { className: "text-muted", children: "No redirects recorded." }) }), _jsx(Collapsible, { title: "WHOIS", children: _jsx("pre", { className: "pre", children: JSON.stringify(data.whois, null, 2) }) }), _jsx(Collapsible, { title: "SSL/TLS", children: _jsx("pre", { className: "pre", children: JSON.stringify(data.ssl, null, 2) }) }), _jsx(Collapsible, { title: "Detections", children: Object.keys(data.detections).length ? (_jsx("ul", { className: "list", children: Object.entries(data.detections).map(([k, v]) => _jsxs("li", { children: [_jsxs("strong", { children: [k, ":"] }), " ", v] }, k)) })) : _jsx("p", { className: "text-muted", children: "No detections." }) }), _jsxs("section", { className: "card p-3", children: [_jsx("h2", { className: "text-sm font-medium", children: "Model notes" }), data.model_explanations.length ? (_jsx("ul", { className: "list", children: data.model_explanations.map((m, i) => _jsx("li", { children: m }, i)) })) : _jsx("p", { className: "text-muted", children: "No explanations provided." })] }), _jsxs("section", { className: "card p-3", children: [_jsx("h2", { className: "text-sm font-medium", children: "Graph" }), _jsx("div", { className: "graph", "aria-hidden": "true" })] }), _jsxs("details", { className: "card p-3", children: [_jsx("summary", { children: "Code view" }), _jsx("pre", { className: "pre", "aria-label": "Raw JSON", children: JSON.stringify(data, null, 2) })] })] }));
 }

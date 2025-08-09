@@ -1,3 +1,8 @@
-import type { SafeAnalysisResult } from './analyzer';
-export declare function saveResult(id: string, result: SafeAnalysisResult): Promise<void>;
-export declare function getResult(id: string): Promise<SafeAnalysisResult | undefined>;
+import type { AnalysisResponse } from './apiClient';
+export declare function saveResult(result: AnalysisResponse): void;
+export declare function getCached(uuid: string): AnalysisResponse | null;
+export declare function getRecent(n?: number): {
+    uuid: string;
+    verdict: string;
+    submitted: string;
+}[];

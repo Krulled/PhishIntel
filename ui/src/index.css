@@ -1,120 +1,39 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 84% 4.9%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 84% 4.9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
-    --accent-green: 142.1 76.2% 36.3%;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-  }
-}
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
-
-@layer components {
-  .card {
-    @apply bg-card border border-border rounded-xl shadow-soft;
-  }
-  .btn {
-    @apply inline-flex items-center justify-center rounded-xl text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-accent-green disabled:opacity-50 disabled:cursor-not-allowed;
-  }
-  .btn-primary {
-    @apply btn bg-accent-green text-black hover:bg-emerald-400;
-  }
-  .btn-secondary {
-    @apply btn bg-muted text-foreground hover:bg-[#222a35];
-  }
-  .input {
-    @apply block w-full rounded-xl border-border bg-muted text-foreground placeholder:text-gray-400 shadow-soft focus:border-accent-green focus:ring-accent-green;
-  }
-}
-
-/* Custom animations for cybersecurity loading */
-@keyframes spin-slow {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes fall {
-  0% {
-    transform: translateY(-100vh);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(100vh);
-    opacity: 0;
-  }
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-.animate-spin-slow {
-  animation: spin-slow 3s linear infinite;
-}
-
-.animate-fall {
-  animation: fall 5s linear infinite;
-}
-
-.animate-shimmer {
-  animation: shimmer 2s ease-in-out infinite;
-}
+:root{--bg:#0b0b0f;--fg:#e6e6ea;--muted:#9aa0aa;--card:#15161b;--border:#2a2d34;--accent:#3b82f6;--safe:#10b981;--susp:#f59e0b;--mal:#ef4444;--gap:clamp(0.75rem,2.5vw,1rem);--radius:12px;--font: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji"}
+*{box-sizing:border-box}
+html,body,#root{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);line-height:1.4}
+.container{max-width:900px;margin-inline:auto}
+.p-gap{padding:var(--gap)}
+.space-y-gap > * + *{margin-top:var(--gap)}
+.text-title{font-size:clamp(1.5rem,5vw,2rem)}
+.text-subtitle{font-size:clamp(1.1rem,3.5vw,1.3rem)}
+.text-muted{color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius)}
+.input{background:#0f1115;border:1px solid var(--border);border-radius:var(--radius);color:var(--fg);padding:0.8rem 0.9rem;width:100%}
+.btn{background:#1b1e25;border:1px solid var(--border);color:var(--fg);border-radius:var(--radius);padding:0.7rem 0.9rem}
+.btn:hover{border-color:#3a3f47}
+.btn-primary{background:var(--accent);border-color:transparent;color:white}
+.btn-secondary{background:#1b1e25}
+.link{color:var(--accent);text-decoration:none}
+.link:hover{text-decoration:underline}
+.accent{color:var(--accent)}
+.badge{border-radius:999px;padding:0.2rem 0.6rem;font-size:0.8rem}
+.badge.safe{background:color-mix(in srgb, var(--safe) 20%, transparent);color:var(--safe)}
+.badge.susp{background:color-mix(in srgb, var(--susp) 20%, transparent);color:var(--susp)}
+.badge.mal{background:color-mix(in srgb, var(--mal) 20%, transparent);color:var(--mal)}
+.spinner{display:inline-block;width:1em;height:1em;border:2px solid #fff3;border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.callout{border:1px solid var(--border);border-radius:var(--radius);padding:0.8rem}
+.callout-error{background:color-mix(in srgb, var(--mal) 10%, transparent);border-color:color-mix(in srgb, var(--mal) 30%, var(--border))}
+.quickfacts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gap);margin-top:0.5rem}
+.quickfacts span{display:block;color:var(--muted);font-size:0.75rem}
+.quickfacts strong{font-weight:600}
+.collapse-toggle{width:100%;text-align:left;background:transparent;border:none;color:var(--fg);padding:0.8rem;border-bottom:1px solid var(--border)}
+.collapse-open{padding:0.8rem}
+.collapse-closed{padding:0.8rem}
+.skeleton{border-radius:var(--radius);background:linear-gradient(90deg,#1a1c22,#20232a,#1a1c22);background-size:200% 100%;animation:shimmer 1.2s infinite}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.pre{background:#0f1115;border:1px solid var(--border);border-radius:var(--radius);padding:0.8rem;overflow:auto;max-height:40vh}
+.graph{height:120px;border:1px dashed var(--border);border-radius:var(--radius)}
+.accent{background:color-mix(in srgb, var(--accent) 20%, transparent)}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}
