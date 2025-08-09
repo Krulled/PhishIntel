@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { analyze, type ScanResult, saveRecent, getRecent, fetchRecentRemote } from '../services/apiClient'
+import EvidenceScreenshot from '../components/EvidenceScreenshot'
 
 const riskColor = (score: number) => {
   if (score >= 80) return 'text-red-300 bg-red-500/15 border-red-500/30'
@@ -137,21 +138,13 @@ export default function Home() {
                 {(data.redirect_chain?.length? data.redirect_chain: [data.normalized]).map((u, i)=> <li key={i}>{u}</li>)}
               </ol>
             </details>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-                <div className="mb-2 font-medium">WHOIS</div>
-                <div className="text-sm text-gray-300">Registrar: {data.whois.registrar || 'n/a'}</div>
-                <div className="text-sm text-gray-300">Created: {data.whois.created || 'n/a'}</div>
-              </div>
-              <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-                <div className="mb-2 font-medium">SSL</div>
-                <div className="text-sm text-gray-300">Issuer: {data.ssl.issuer || 'n/a'}</div>
-                <div className="text-sm text-gray-300">Valid: {data.ssl.valid_from || '—'} → {data.ssl.valid_to || '—'}</div>
-              </div>
+            <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+              <div className="mb-2 font-medium">SSL</div>
+              <div className="text-sm text-gray-300">Issuer: {data.ssl.issuer || 'n/a'}</div>
+              <div className="text-sm text-gray-300">Valid: {data.ssl.valid_from || '—'} → {data.ssl.valid_to || '—'}</div>
             </div>
-            <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3">
-              <div className="mb-2 font-medium">Map</div>
-              <div className="h-28 w-full rounded bg-white/5 text-center text-xs text-gray-400">Geolocation: {data.geolocation.country} {data.geolocation.region} {data.geolocation.city}</div>
+            <div className="mt-3">
+              <EvidenceScreenshot scanId={data.uuid} />
             </div>
             {data.model_explanations?.length > 0 && (
               <div className="mt-3 rounded-lg border border-indigo-400/30 bg-indigo-500/10 p-3">

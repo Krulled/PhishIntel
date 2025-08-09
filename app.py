@@ -1,12 +1,17 @@
 from flask import Flask, request, render_template, jsonify
+from flask_cors import CORS
 import os
 import tempfile
 from analyze import analyze_and_log
 import uuid as uuid_lib
-from datetime import datetime, timedelta
+from datetime import datetime
+import requests
 import typing as t
+from pathlib import Path
 
 app = Flask(__name__)
+# Allow frontend dev server (5173) to call the API (5000)
+CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}})
 
 # Auth feature flags and config (safe defaults)
 AUTH_ENABLED = (os.getenv('AUTH_ENABLED') or 'false').lower() == 'true'
@@ -319,6 +324,77 @@ def get_scan(uuid):
 def recent_scans():
     # Return only UUIDs to keep the payload small
     return jsonify({'uuids': RECENT_UUIDS[:5]})
+
+
+@app.route('/api/urlscan/<scan_id>/screenshot')
+def get_urlscan_screenshot(scan_id):
+    """
+    Get URLScan screenshot for a given scan_id.
+    Returns the PNG image bytes with proper caching headers.
+    """
+    try:
+        # Create cache directory if it doesn't exist
+        cache_dir = Path('./Data/urlscan_screenshots')
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Check if we have a cached version
+        cache_file = cache_dir / f"{scan_id}.png"
+        if cache_file.exists():
+            with open(cache_file, 'rb') as f:
+                image_data = f.read()
+            response = app.response_class(image_data, mimetype='image/png')
+            response.headers['Cache-Control'] = 'public, max-age=3600'
+            return response
+        
+        # Fetch from URLScan API
+        # Get the scan result from cache to find the URLScan UUID
+        scan_data = SCAN_CACHE.get(scan_id)
+        if not scan_data:
+            return jsonify({'error': 'screenshot_not_found'}), 404
+            
+        # Try to get URLScan UUID from the scan data
+        # This assumes the analyze_and_log stores urlscan data somewhere
+        # For now, we'll use the URLScan API directly with the URL
+        
+        # Get API key from environment
+        api_key = os.getenv('URLSCAN_API_KEY', '')
+        
+        # Submit scan to URLScan if we don't have a UUID
+        headers = {}
+        if api_key:
+            headers['API-Key'] = api_key
+            
+        # First try to get an existing scan result by searching
+        search_url = f"https://urlscan.io/api/v1/search/?q=page.url:\"{scan_data.get('normalized', '')}\""
+        
+        try:
+            search_response = requests.get(search_url, headers=headers, timeout=10)
+            if search_response.status_code == 200:
+                search_data = search_response.json()
+                results = search_data.get('results', [])
+                if results:
+                    # Use the most recent scan
+                    urlscan_uuid = results[0].get('task', {}).get('uuid')
+                    if urlscan_uuid:
+                        # Get the screenshot
+                        screenshot_url = f"https://urlscan.io/screenshots/{urlscan_uuid}.png"
+                        screenshot_response = requests.get(screenshot_url, timeout=10)
+                        if screenshot_response.status_code == 200:
+                            image_data = screenshot_response.content
+                            # Cache it
+                            with open(cache_file, 'wb') as f:
+                                f.write(image_data)
+                            response = app.response_class(image_data, mimetype='image/png')
+                            response.headers['Cache-Control'] = 'public, max-age=3600'
+                            return response
+        except Exception:
+            pass
+            
+        # If we couldn't find or fetch the screenshot
+        return jsonify({'error': 'screenshot_not_found'}), 404
+        
+    except Exception as e:
+        return jsonify({'error': 'screenshot_not_found'}), 404
 
 
 if __name__ == '__main__':

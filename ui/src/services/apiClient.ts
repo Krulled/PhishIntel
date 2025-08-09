@@ -112,9 +112,29 @@ export async function analyze(inputValue: string): Promise<{ result: ScanResult;
 }
 
 export async function getScan(uuid: string): Promise<ScanResult | null> {
-  const res = await doFetch(`${API_BASE_URL}/api/scan/${uuid}`)
-  if (res.ok) return (await res.json()) as ScanResult
-  return null
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/scan/${uuid}`)
+    if (res.status === 404) return null
+    return await res.json()
+  } catch (error) {
+    console.error('getScan error:', error)
+    return null
+  }
+}
+
+export async function getUrlscanScreenshot(scanId: string): Promise<Blob | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/urlscan/${scanId}/screenshot`, {
+      credentials: 'same-origin'
+    })
+    if (res.status === 200 && res.headers.get('content-type')?.includes('image')) {
+      return await res.blob()
+    }
+    return null
+  } catch (error) {
+    console.error('getUrlscanScreenshot error:', error)
+    return null
+  }
 }
 
 export async function fetchRecentRemote(): Promise<string[]> {
