@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { analyze, type ScanResult, saveRecent, getRecent, fetchRecentRemote } from '../services/apiClient'
 
+const UI_AUTH_ENABLED = (import.meta.env.VITE_UI_AUTH_ENABLED || 'false').toString().toLowerCase() === 'true'
+
 const riskColor = (score: number) => {
   if (score >= 80) return 'text-red-300 bg-red-500/15 border-red-500/30'
   if (score >= 50) return 'text-amber-300 bg-amber-500/15 border-amber-500/30'
@@ -40,6 +42,12 @@ export default function Home() {
     return value.trim().length > 0
   }
 
+  function logout() {
+    if (!UI_AUTH_ENABLED) return
+    try { localStorage.removeItem('phishintel_token') } catch {}
+    navigate('/login', { replace: true })
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!validate(input)) { setError('Enter a valid input'); return }
@@ -66,11 +74,18 @@ export default function Home() {
     }
   }
 
+  const hasToken = UI_AUTH_ENABLED && typeof window !== 'undefined' && !!localStorage.getItem('phishintel_token')
+
   return (
     <main className="min-h-screen bg-[#0b0e16] text-white">
       <section className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-4">
-        <div className="mb-8 text-center">
+        <div className="mb-8 flex w-full items-center justify-between text-center">
           <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-indigo-500/10 ring-1 ring-indigo-400/30" aria-hidden />
+          {hasToken && (
+            <button onClick={logout} className="rounded border border-white/10 bg-white/10 px-3 py-1 text-xs text-gray-200 hover:bg-white/15">Logout</button>
+          )}
+        </div>
+        <div className="-mt-6 mb-8 text-center">
           <h1 className="text-2xl font-semibold tracking-tight">PHISHINTEL</h1>
           <p className="mt-1 text-sm text-gray-300">Search for a URL, domain, IP, or hash to assess phishing risk.</p>
         </div>

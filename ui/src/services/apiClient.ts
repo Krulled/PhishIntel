@@ -22,14 +22,34 @@ export type ScanResult = {
   error?: string
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+const API_BASE_URL = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || 'http://localhost:5000'
+
+function getToken(): string | null {
+  try { return localStorage.getItem('phishintel_token') } catch { return null }
+}
 
 function toCurl(url: string, body: unknown): string {
   return `curl -sS -X POST '${url}' -H 'Content-Type: application/json' --data '${JSON.stringify(body)}'`
 }
 
 async function doFetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
-  return fetch(input, { ...init })
+  const token = getToken()
+  const headers: Record<string,string> = { ...(init?.headers as Record<string,string> | undefined) }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  return fetch(input, { ...init, headers })
+}
+
+export async function login(username: string, password: string): Promise<{ token?: string; user?: { name: string }; disabled?: boolean }>{
+  const endpoint = `${API_BASE_URL}/api/auth/login`
+  const res = await doFetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password })
+  })
+  if (res.status === 501) return { disabled: true }
+  if (!res.ok) throw new Error(`Login failed (${res.status})`)
+  const data = await res.json()
+  return data
 }
 
 export async function analyze(inputValue: string): Promise<{ result: ScanResult; curl: string }>{

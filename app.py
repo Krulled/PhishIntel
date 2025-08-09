@@ -3,7 +3,9 @@ import os
 import tempfile
 from analyze import analyze_and_log
 import uuid as uuid_lib
-from datetime import datetime
+from datetime import datetime, timedelta
+import jwt
+from functools import wraps
 
 app = Flask(__name__)
 
@@ -11,6 +13,44 @@ app = Flask(__name__)
 SCAN_CACHE = {}
 RECENT_UUIDS = []
 MAX_RECENT = 20
+
+# Feature flags and secrets
+AUTH_ENABLED = os.getenv('AUTH_ENABLED', 'false').lower() == 'true'
+SECRET_KEY = os.getenv('SECRET_KEY', 'devsecret')
+WEB_USERNAME = os.getenv('WEB_USERNAME', 'admin')
+WEB_PASSWORD = os.getenv('WEB_PASSWORD', 'change_me')
+
+
+def _make_jwt(payload: dict, expires_hours: int = 6) -> str:
+    now = datetime.utcnow()
+    exp = now + timedelta(hours=expires_hours)
+    body = {**payload, 'iat': now, 'exp': exp}
+    return jwt.encode(body, SECRET_KEY, algorithm='HS256')
+
+
+def _decode_jwt(token: str) -> dict | None:
+    try:
+        return jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+    except Exception:
+        return None
+
+
+def require_auth(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not AUTH_ENABLED:
+            return jsonify({'error': 'auth_disabled'}), 501
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'unauthorized'}), 401
+        token = auth_header.split(' ', 1)[1].strip()
+        data = _decode_jwt(token)
+        if not data:
+            return jsonify({'error': 'invalid_token'}), 401
+        # Optional: attach to request context
+        return f(*args, **kwargs)
+    return wrapper
+
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -40,6 +80,7 @@ def index():
                     results.append({'url': url, 'error': str(e)})
     return render_template('index.html', results=results, error=error)
 
+
 @app.route('/api/analyze', methods=['POST'])
 def api_analyze():
     data = request.get_json()
@@ -56,6 +97,34 @@ def api_analyze():
         except Exception as e:
             results.append({'url': url, 'error': str(e)})
     return jsonify({'results': results})
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def auth_login():
+    if not AUTH_ENABLED:
+        return jsonify({'error': 'auth_disabled'}), 501
+    try:
+        payload = request.get_json(force=True) or {}
+    except Exception:
+        payload = {}
+    username = (payload.get('username') or '').strip()
+    password = (payload.get('password') or '').strip()
+    if not username or not password:
+        return jsonify({'error': 'missing_credentials'}), 400
+    if username != WEB_USERNAME or password != WEB_PASSWORD:
+        return jsonify({'error': 'invalid_credentials'}), 401
+    token = _make_jwt({'sub': username})
+    resp = jsonify({'token': token, 'user': {'name': username}})
+    # Minimal CORS and security headers without altering global CORS
+    resp.headers['Cache-Control'] = 'no-store'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp
+
+
+@app.route('/api/ping-auth', methods=['GET'])
+@require_auth
+def ping_auth():
+    return jsonify({'ok': True})
 
 
 def _verdict_from_score(score: float) -> str:
