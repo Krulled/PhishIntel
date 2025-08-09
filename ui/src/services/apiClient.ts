@@ -122,3 +122,15 @@ export function getRecent(): string[] {
   const key = 'phishintel_recent_uuids'
   return JSON.parse(localStorage.getItem(key) || '[]') as string[]
 }
+
+export async function getUrlscanScreenshot(scanId: string): Promise<Blob | null> {
+  try {
+    const res = await doFetch(`${API_BASE_URL}/api/urlscan/${scanId}/screenshot`)
+    if (res.ok) {
+      return await res.blob()
+    }
+    return null
+  } catch {
+    return null
+  }
+}
