@@ -3,14 +3,126 @@ import os
 import tempfile
 from analyze import analyze_and_log
 import uuid as uuid_lib
-from datetime import datetime
+from datetime import datetime, timedelta
+import typing as t
 
 app = Flask(__name__)
+
+# Auth feature flags and config (safe defaults)
+AUTH_ENABLED = (os.getenv('AUTH_ENABLED') or 'false').lower() == 'true'
+SECRET_KEY = os.getenv('SECRET_KEY') or 'devsecret'
+WEB_USERNAME = os.getenv('WEB_USERNAME') or 'admin'
+WEB_PASSWORD = os.getenv('WEB_PASSWORD') or 'change_me'
+
+try:
+    import jwt  # PyJWT
+except Exception:  # pragma: no cover
+    jwt = None  # Will only be used if AUTH_ENABLED is enabled
 
 # In-memory cache for scan results (per-process)
 SCAN_CACHE = {}
 RECENT_UUIDS = []
 MAX_RECENT = 20
+
+@app.route('/api/auth/login', methods=['POST', 'OPTIONS'])
+def auth_login():
+    """Feature-flagged login endpoint. Returns 501 when AUTH is disabled."""
+    # Minimal CORS for this endpoint only
+    if request.method == 'OPTIONS':
+        resp = app.response_class(status=204)
+        _set_auth_cors_headers(resp)
+        return resp
+
+    if not AUTH_ENABLED:
+        resp = jsonify({'error': 'auth_disabled'})
+        _set_auth_cors_headers(resp)
+        return resp, 501
+
+    if jwt is None:
+        resp = jsonify({'error': 'jwt_unavailable'})
+        _set_auth_cors_headers(resp)
+        return resp, 500
+
+    try:
+        payload = request.get_json(force=True) or {}
+        username = (payload.get('username') or '').strip()
+        password = (payload.get('password') or '').strip()
+        if not username or not password:
+            resp = jsonify({'error': 'missing_credentials'})
+            _set_auth_cors_headers(resp)
+            return resp, 400
+        if username != WEB_USERNAME or password != WEB_PASSWORD:
+            resp = jsonify({'error': 'invalid_credentials'})
+            _set_auth_cors_headers(resp)
+            return resp, 401
+
+        now = datetime.utcnow()
+        token = jwt.encode({'sub': username, 'iat': now, 'exp': now + timedelta(hours=6)}, SECRET_KEY, algorithm='HS256')
+        resp = jsonify({'token': token, 'user': {'name': username}})
+        _set_auth_cors_headers(resp)
+        _set_auth_security_headers(resp)
+        return resp
+    except Exception as e:
+        resp = jsonify({'error': 'server_error', 'detail': str(e)})
+        _set_auth_cors_headers(resp)
+        return resp, 500
+
+
+def _set_auth_cors_headers(resp):
+    """Apply CORS only for auth endpoints to avoid changing global behavior."""
+    origin = request.headers.get('Origin')
+    if origin:
+        resp.headers['Access-Control-Allow-Origin'] = origin
+        resp.headers['Vary'] = 'Origin'
+    else:
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+    resp.headers['Access-Control-Allow-Credentials'] = 'false'
+    resp.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    resp.headers['Access-Control-Allow-Methods'] = 'POST, GET, OPTIONS'
+
+
+def _set_auth_security_headers(resp):
+    resp.headers['Cache-Control'] = 'no-store'
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+
+
+def _require_auth(fn: t.Callable):
+    """Simple decorator that checks for a valid Bearer token when AUTH is enabled."""
+    from functools import wraps
+
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if not AUTH_ENABLED:
+            # Paranoid: if called while disabled, do not enforce
+            return fn(*args, **kwargs)
+        if jwt is None:
+            return jsonify({'error': 'jwt_unavailable'}), 500
+        auth = request.headers.get('Authorization') or ''
+        parts = auth.split()
+        if len(parts) != 2 or parts[0].lower() != 'bearer':
+            return jsonify({'error': 'missing_token'}), 401
+        token = parts[1]
+        try:
+            jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+        except Exception as e:
+            return jsonify({'error': 'invalid_token', 'detail': str(e)}), 401
+        return fn(*args, **kwargs)
+
+    return wrapper
+
+# Conditionally register a demo protected endpoint to prove server-side works
+if AUTH_ENABLED:
+    @app.route('/api/ping-auth', methods=['GET', 'OPTIONS'])
+    @_require_auth
+    def ping_auth():
+        if request.method == 'OPTIONS':
+            resp = app.response_class(status=204)
+            _set_auth_cors_headers(resp)
+            return resp
+        resp = jsonify({'ok': True})
+        _set_auth_cors_headers(resp)
+        _set_auth_security_headers(resp)
+        return resp
 
 @app.route('/', methods=['GET', 'POST'])
 def index():

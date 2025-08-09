@@ -22,14 +22,31 @@ export type ScanResult = {
   error?: string
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE || (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000'
+
+const TOKEN_KEY = 'phishintel_token'
+
+function getToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_KEY)
+  } catch {
+    return null
+  }
+}
+
+export function clearToken() {
+  try { localStorage.removeItem(TOKEN_KEY) } catch {}
+}
 
 function toCurl(url: string, body: unknown): string {
   return `curl -sS -X POST '${url}' -H 'Content-Type: application/json' --data '${JSON.stringify(body)}'`
 }
 
 async function doFetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
-  return fetch(input, { ...init })
+  const token = getToken()
+  const baseHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+  const mergedHeaders = { ...(init?.headers as any), ...baseHeaders }
+  return fetch(input, { ...init, headers: mergedHeaders })
 }
 
 export async function analyze(inputValue: string): Promise<{ result: ScanResult; curl: string }>{
@@ -121,4 +138,22 @@ export function saveRecent(uuid: string) {
 export function getRecent(): string[] {
   const key = 'phishintel_recent_uuids'
   return JSON.parse(localStorage.getItem(key) || '[]') as string[]
+}
+
+export async function login(username: string, password: string): Promise<{ token: string; user: { name: string } } | { error: string }>{
+  const endpoint = `${API_BASE_URL}/api/auth/login`
+  const res = await doFetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  if (res.status === 501) {
+    return { error: 'auth_disabled' }
+  }
+  if (!res.ok) {
+    try { return await res.json() } catch { return { error: `HTTP_${res.status}` } }
+  }
+  const data = await res.json()
+  try { localStorage.setItem(TOKEN_KEY, data.token) } catch {}
+  return data
 }
