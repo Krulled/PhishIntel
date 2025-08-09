@@ -4,7 +4,10 @@ import tempfile
 from analyze import analyze_and_log
 import uuid as uuid_lib
 from datetime import datetime, timedelta
-import jwt
+try:
+    import jwt  # type: ignore
+except Exception:
+    jwt = None  # type: ignore
 from functools import wraps
 
 app = Flask(__name__)
@@ -25,11 +28,15 @@ def _make_jwt(payload: dict, expires_hours: int = 6) -> str:
     now = datetime.utcnow()
     exp = now + timedelta(hours=expires_hours)
     body = {**payload, 'iat': now, 'exp': exp}
+    if not jwt:
+        raise RuntimeError('PyJWT is not installed')
     return jwt.encode(body, SECRET_KEY, algorithm='HS256')
 
 
 def _decode_jwt(token: str) -> dict | None:
     try:
+        if not jwt:
+            return None
         return jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
     except Exception:
         return None
