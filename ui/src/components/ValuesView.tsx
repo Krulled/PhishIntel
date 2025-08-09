@@ -1,5 +1,6 @@
 import React from 'react'
 import { normalizeScan, flattenForTable, type NormalizedScan } from '../services/valuesNormalizer'
+import EvidenceScreenshot from './EvidenceScreenshot'
 
 export default function ValuesView({ raw }: { raw: any }) {
   const norm: NormalizedScan = normalizeScan(raw)
@@ -55,13 +56,6 @@ export default function ValuesView({ raw }: { raw: any }) {
         )}
       </div>
 
-      {/* WHOIS card */}
-      <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-        <div className="mb-1 text-sm font-medium">WHOIS</div>
-        <div className="text-sm text-gray-300">Registrar: {norm.whois.registrar || 'n/a'}</div>
-        <div className="text-sm text-gray-300">Created: {norm.whois.created || 'n/a'}</div>
-      </div>
-
       {/* SSL card */}
       <div className="rounded-lg border border-white/10 bg-black/20 p-3">
         <div className="mb-1 text-sm font-medium">SSL</div>
@@ -70,11 +64,8 @@ export default function ValuesView({ raw }: { raw: any }) {
         <div className="text-sm text-gray-300">Status: {norm.ssl.status || 'n/a'}</div>
       </div>
 
-      {/* Evidence / Map section */}
-      <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-        <div className="mb-1 text-sm font-medium">Evidence/Map</div>
-        <div className="text-sm text-gray-300">Evidence: n/a</div>
-      </div>
+      {/* Evidence Screenshot - replacing Map section */}
+      {norm.id && <EvidenceScreenshot scanId={norm.id} />}
 
       {/* All Values (Flattened) table */}
       <div className="rounded-lg border border-white/10 bg-black/20 p-3">
