@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
+import { getScreenshotAnnotations, type ScreenshotAnnotation } from '../services/apiClient'
 
 interface UrlscanScreenshotProps {
   scanId: string
@@ -10,11 +11,15 @@ export default function UrlscanScreenshot({ scanId }: UrlscanScreenshotProps) {
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [annotations, setAnnotations] = useState<ScreenshotAnnotation | null>(null)
+  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const imageRef = useRef<HTMLImageElement>(null)
 
   useEffect(() => {
     let cancelled = false
 
-    async function fetchScreenshot() {
+    async function fetchData() {
       if (!scanId) {
         setError('No scan ID provided')
         setLoading(false)
@@ -22,19 +27,27 @@ export default function UrlscanScreenshot({ scanId }: UrlscanScreenshotProps) {
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/urlscan/${scanId}/screenshot`)
+        // Fetch screenshot and annotations in parallel
+        const [screenshotResponse, annotationsData] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/urlscan/${scanId}/screenshot`),
+          getScreenshotAnnotations(scanId)
+        ])
         
         if (!cancelled) {
-          if (response.ok) {
-            const blob = await response.blob()
+          // Handle screenshot
+          if (screenshotResponse.ok) {
+            const blob = await screenshotResponse.blob()
             const objectUrl = URL.createObjectURL(blob)
             setImageUrl(objectUrl)
             setError(null)
-          } else if (response.status === 404) {
+          } else if (screenshotResponse.status === 404) {
             setError('No screenshot available for this scan')
           } else {
             setError('Failed to load screenshot')
           }
+
+          // Handle annotations
+          setAnnotations(annotationsData)
           setLoading(false)
         }
       } catch (err) {
@@ -45,7 +58,7 @@ export default function UrlscanScreenshot({ scanId }: UrlscanScreenshotProps) {
       }
     }
 
-    fetchScreenshot()
+    fetchData()
 
     return () => {
       cancelled = true
@@ -65,11 +78,44 @@ export default function UrlscanScreenshot({ scanId }: UrlscanScreenshotProps) {
     }
   }, [imageUrl])
 
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget
+    setImageDimensions({
+      width: img.naturalWidth,
+      height: img.naturalHeight
+    })
+  }
+
+  const openInNewTab = () => {
+    if (imageUrl) {
+      window.open(imageUrl, '_blank')
+    }
+  }
+
   return (
     <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-      <div className="mb-2 text-sm font-medium">URLScan Screenshot</div>
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-sm font-medium">
+          URLScan Screenshot
+          {annotations && annotations.boxes.length > 0 && (
+            <span className="ml-2 text-xs text-orange-400">(AI Annotated)</span>
+          )}
+        </div>
+        {imageUrl && (
+          <button
+            onClick={openInNewTab}
+            className="text-xs text-gray-400 hover:text-white transition-colors"
+            title="Open in new tab"
+          >
+            🔍 Zoom
+          </button>
+        )}
+      </div>
       
-      <div className="relative aspect-video w-full rounded border border-white/5 bg-white/5 overflow-hidden">
+      <div 
+        ref={containerRef}
+        className="relative aspect-video w-full rounded border border-white/5 bg-white/5 overflow-hidden"
+      >
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="flex items-center space-x-2 text-sm text-gray-400">
@@ -89,17 +135,75 @@ export default function UrlscanScreenshot({ scanId }: UrlscanScreenshotProps) {
         )}
         
         {imageUrl && !loading && !error && (
-          <img
-            src={imageUrl}
-            alt="URLScan website screenshot"
-            className="w-full h-full object-cover"
-            onError={() => {
-              setError('Failed to display screenshot')
-              setImageUrl(null)
-            }}
-          />
+          <>
+            <img
+              ref={imageRef}
+              src={imageUrl}
+              alt="URLScan website screenshot"
+              className="w-full h-full object-contain"
+              onLoad={handleImageLoad}
+              onError={() => {
+                setError('Failed to display screenshot')
+                setImageUrl(null)
+              }}
+            />
+            
+            {/* AI Annotations Overlay */}
+            {annotations && annotations.boxes.length > 0 && imageDimensions && containerRef.current && imageRef.current && (
+              <div className="absolute inset-0 pointer-events-none">
+                {annotations.boxes.map((box, index) => {
+                  // Get container dimensions
+                  const containerRect = containerRef.current!.getBoundingClientRect()
+                  const containerWidth = containerRect.width
+                  const containerHeight = containerRect.height
+
+                  // Calculate object-contain scaling
+                  const scaleX = containerWidth / imageDimensions.width
+                  const scaleY = containerHeight / imageDimensions.height
+                  const scale = Math.min(scaleX, scaleY)
+
+                  // Calculate actual displayed image dimensions
+                  const displayWidth = imageDimensions.width * scale
+                  const displayHeight = imageDimensions.height * scale
+
+                  // Calculate offsets for centering (object-contain behavior)
+                  const offsetX = (containerWidth - displayWidth) / 2
+                  const offsetY = (containerHeight - displayHeight) / 2
+
+                  // Scale and position the box
+                  const scaledX = box.x * scale + offsetX
+                  const scaledY = box.y * scale + offsetY
+                  const scaledWidth = box.w * scale
+                  const scaledHeight = box.h * scale
+
+                  return (
+                    <div
+                      key={index}
+                      className="absolute border-2 border-red-500 backdrop-blur-[1px]"
+                      style={{
+                        left: `${scaledX}px`,
+                        top: `${scaledY}px`,
+                        width: `${scaledWidth}px`,
+                        height: `${scaledHeight}px`,
+                      }}
+                    >
+                      <div className="absolute -top-6 left-0 rounded bg-red-500 px-1 py-0.5 text-[10px] text-white shadow-lg whitespace-nowrap">
+                        {box.tag}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
+      
+      {annotations && annotations.boxes.length > 0 && (
+        <div className="mt-2 text-xs text-gray-400">
+          AI detected {annotations.boxes.length} potentially suspicious element{annotations.boxes.length !== 1 ? 's' : ''}
+        </div>
+      )}
     </div>
   )
 }

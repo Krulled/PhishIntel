@@ -7,6 +7,7 @@ from analyze import analyze_and_log
 import uuid as uuid_lib
 from datetime import datetime
 from pathlib import Path
+from ai_analysis import annotate_screenshot
 
 app = Flask(__name__)
 # Allow frontend dev server (5173) to call the API (5000)
@@ -277,3 +278,18 @@ def get_urlscan_screenshot(scan_id):
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
+
+
+@app.route('/api/ai/annotate_screenshot/<scan_id>')
+def get_screenshot_annotations(scan_id):
+    """
+    Get AI-generated annotations for a screenshot of the given scan.
+    Returns JSON with bounding boxes and tags, or 204 if no annotations available.
+    """
+    try:
+        result = annotate_screenshot(scan_id)
+        if result is None:
+            return '', 204  # No content - graceful degradation
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': 'server_error', 'message': str(e)}), 500

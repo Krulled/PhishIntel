@@ -22,6 +22,19 @@ export type ScanResult = {
   error?: string
 }
 
+export type ScreenshotAnnotation = {
+  image: { width: number; height: number }
+  boxes: Array<{
+    x: number
+    y: number
+    w: number
+    h: number
+    tag: string
+  }>
+  model: string
+  version: string
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
 function toCurl(url: string, body: unknown): string {
@@ -128,6 +141,21 @@ export async function getUrlscanScreenshot(scanId: string): Promise<Blob | null>
     const res = await doFetch(`${API_BASE_URL}/api/urlscan/${scanId}/screenshot`)
     if (res.ok) {
       return await res.blob()
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+export async function getScreenshotAnnotations(scanId: string): Promise<ScreenshotAnnotation | null> {
+  try {
+    const res = await doFetch(`${API_BASE_URL}/api/ai/annotate_screenshot/${scanId}`)
+    if (res.status === 204) {
+      return null // No annotations available
+    }
+    if (res.ok) {
+      return (await res.json()) as ScreenshotAnnotation
     }
     return null
   } catch {
