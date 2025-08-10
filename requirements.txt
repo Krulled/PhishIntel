@@ -9,3 +9,7 @@ numpy==1.24.3
 tldextract==5.1.1
 vt-py==0.14.0
 requests==2.31.0
+
+# Development/audit dependencies
+pip-audit==2.6.1
+safety==2.3.5

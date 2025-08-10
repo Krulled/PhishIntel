@@ -11,7 +11,7 @@ describe('ScanResult schema', () => {
       status: 'ok', verdict: 'Suspicious', uuid: 'u', submitted: 's', normalized: 'n', redirect_chain: [], final_url: 'f',
       whois: { registrar: '', created: '', updated: '', expires: '', country: '' },
       ssl: { issuer: '', valid_from: '', valid_to: '', sni: '' },
-      domain_age_days: 0, ip: '', asn: '', geolocation: { country: '', region: '', city: '' }, detections: {}, blacklists: [], heuristics: {}, model_explanations: [], risk_score: 42,
+      domain_age_days: 0, ip: '', asn: '', detections: {}, blacklists: [], heuristics: {}, model_explanations: [], risk_score: 42,
     }
     const order = keysInOrder(sample)
     expect(order.slice(0, 6)).toEqual(['status', 'verdict', 'uuid', 'submitted', 'normalized', 'redirect_chain'])

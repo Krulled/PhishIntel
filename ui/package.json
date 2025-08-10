@@ -7,9 +7,12 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "preview": "vite preview",
     "test": "vitest run --reporter=dot",
     "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "audit:ci": "npm audit --audit-level=high",
     "report": "node ./scripts/run-a11y-and-lh.mjs",
     "test:axe": "cross-env APP_URL=http://localhost:5173 pnpm -s report || npm run report",
     "storybook:test": "echo 'stub-visual-regression'"

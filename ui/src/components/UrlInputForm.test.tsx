@@ -26,7 +26,8 @@ describe('Home input form', () => {
 
   it('disables button when input is empty', async () => {
     render(<MemoryRouter><Home /></MemoryRouter>)
-    const button = screen.getByRole('button', { name: /analyze/i })
+    const form = screen.getByRole('form')
+    const button = within(form).getByRole('button', { name: /analyze/i })
     expect(button).toBeDisabled()
     
     const input = screen.getByRole('textbox')
