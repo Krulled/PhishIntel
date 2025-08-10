@@ -21,6 +21,9 @@ export default function Scan() {
     let cancelled = false
     ;(async () => {
       if (!id) return
+      
+      // Note: scanId from URL params will be used for screenshot fetching
+      
       const res = await getScan(id)
       if (!cancelled) {
         setData(res)

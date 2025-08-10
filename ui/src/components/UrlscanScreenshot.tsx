@@ -1,45 +1,47 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
+import { getUrlscanScreenshotBlob, isLikelyImageUrl } from '../services/apiClient'
 
 interface UrlscanScreenshotProps {
-  scanId: string
+  scanId?: string | null
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
-
 export default function UrlscanScreenshot({ scanId }: UrlscanScreenshotProps) {
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [blobUrl, setBlobUrl] = useState<string>()
+  const [pastedUrl, setPastedUrl] = useState('')
+  const [loading, setLoading] = useState<boolean>(!!scanId)
+  const [error, setError] = useState<string>()
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    let cancelled = false
+    let alive = true
+    let currentBlobUrl: string | undefined
 
-    async function fetchScreenshot() {
+    const fetchScreenshot = async () => {
       if (!scanId) {
-        setError('No scan ID provided')
         setLoading(false)
         return
       }
 
+      setLoading(true)
+      setError(undefined)
+
       try {
-        const response = await fetch(`${API_BASE_URL}/api/urlscan/${scanId}/screenshot`)
-        
-        if (!cancelled) {
-          if (response.ok) {
-            const blob = await response.blob()
-            const objectUrl = URL.createObjectURL(blob)
-            setImageUrl(objectUrl)
-            setError(null)
-          } else if (response.status === 404) {
-            setError('No screenshot available for this scan')
-          } else {
-            setError('Failed to load screenshot')
-          }
-          setLoading(false)
+        const blob = await getUrlscanScreenshotBlob(scanId)
+        if (!alive) return
+
+        if (blob) {
+          const url = URL.createObjectURL(blob)
+          currentBlobUrl = url
+          setBlobUrl(url)
+          setError(undefined)
+        } else {
+          setError('not_found')
         }
       } catch (err) {
-        if (!cancelled) {
-          setError('Failed to load screenshot')
+        if (!alive) return
+        setError('fetch_failed')
+      } finally {
+        if (alive) {
           setLoading(false)
         }
       }
@@ -48,58 +50,133 @@ export default function UrlscanScreenshot({ scanId }: UrlscanScreenshotProps) {
     fetchScreenshot()
 
     return () => {
-      cancelled = true
-      // Clean up object URL to prevent memory leaks
-      if (imageUrl) {
-        URL.revokeObjectURL(imageUrl)
+      alive = false
+      if (currentBlobUrl) {
+        URL.revokeObjectURL(currentBlobUrl)
       }
     }
   }, [scanId])
 
-  // Clean up object URL when component unmounts
+  // Clean up blob URL when component unmounts
   useEffect(() => {
     return () => {
-      if (imageUrl) {
-        URL.revokeObjectURL(imageUrl)
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl)
       }
     }
-  }, [imageUrl])
+  }, [blobUrl])
+
+  const showFallback = !loading && !blobUrl
+
+  const handleUsePastedUrl = () => {
+    if (isLikelyImageUrl(pastedUrl)) {
+      setBlobUrl(pastedUrl)
+      setError(undefined)
+    }
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleUsePastedUrl()
+    }
+  }
+
+  const handleImageClick = () => {
+    if (blobUrl) {
+      window.open(blobUrl, '_blank')
+    }
+  }
+
+  // Focus input when fallback is shown
+  useEffect(() => {
+    if (showFallback && inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [showFallback])
 
   return (
-    <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-      <div className="mb-2 text-sm font-medium">URLScan Screenshot</div>
-      
-      <div className="relative aspect-video w-full rounded border border-white/5 bg-white/5 overflow-hidden">
-        {loading && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="flex items-center space-x-2 text-sm text-gray-400">
-              <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-              <span>Loading screenshot...</span>
-            </div>
-          </div>
-        )}
-        
-        {error && !loading && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center text-sm text-gray-400">
-              <div className="mb-2">📸</div>
-              <div>{error}</div>
-            </div>
-          </div>
-        )}
-        
-        {imageUrl && !loading && !error && (
-          <img
-            src={imageUrl}
-            alt="URLScan website screenshot"
-            className="w-full h-full object-cover"
-            onError={() => {
-              setError('Failed to display screenshot')
-              setImageUrl(null)
-            }}
-          />
+    <section 
+      data-testid="urlscan-screenshot-card" 
+      className="rounded-2xl border border-zinc-700/50 bg-zinc-900/40 p-4"
+    >
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-zinc-200">URLScan Screenshot</h3>
+        {blobUrl && (
+          <span className="text-xs text-zinc-400">Click to open full-size</span>
         )}
       </div>
-    </div>
+
+      {loading && (
+        <div 
+          className="animate-pulse h-48 rounded-lg bg-zinc-800/50" 
+          aria-label="Loading screenshot..."
+        />
+      )}
+
+      {!loading && blobUrl && (
+        <div className="relative">
+          <img
+            src={blobUrl}
+            alt={`URLScan screenshot for ${scanId || 'pasted URL'}`}
+            className="mx-auto max-h-[520px] w-full object-contain cursor-zoom-in rounded-lg border border-zinc-700/30"
+            onClick={handleImageClick}
+            title="Open full-size screenshot"
+            onError={() => {
+              setError('image_load_failed')
+              setBlobUrl(undefined)
+            }}
+          />
+        </div>
+      )}
+
+      {showFallback && (
+        <div className="space-y-3">
+          <p className="text-xs text-zinc-400">
+            Couldn't load screenshot automatically. Paste the screenshot URL from URLScan findings.
+          </p>
+          
+          <div className="flex gap-2">
+            <input
+              ref={inputRef}
+              className="flex-1 rounded-md bg-zinc-800 border border-zinc-700 px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500"
+              placeholder="https://urlscan.io/screenshots/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.png"
+              value={pastedUrl}
+              onChange={e => setPastedUrl(e.target.value.trim())}
+              onKeyPress={handleKeyPress}
+              aria-label="Paste screenshot URL from URLScan"
+            />
+            <button
+              className="rounded-md bg-zinc-200 px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              disabled={!isLikelyImageUrl(pastedUrl)}
+              onClick={handleUsePastedUrl}
+            >
+              Use URL
+            </button>
+          </div>
+
+          <p className="text-xs text-zinc-500">
+            💡 Open URLScan result, copy the 'screenshot' link, and paste it here.
+          </p>
+
+          {error === 'not_found' && (
+            <p className="text-xs text-red-400">
+              No screenshot found for this scan. You can paste a direct URL above.
+            </p>
+          )}
+
+          {error === 'fetch_failed' && (
+            <p className="text-xs text-red-400">
+              Failed to fetch screenshot. Check your connection or paste a direct URL above.
+            </p>
+          )}
+
+          {error === 'image_load_failed' && (
+            <p className="text-xs text-red-400">
+              Failed to load the image. Please check the URL and try again.
+            </p>
+          )}
+        </div>
+      )}
+    </section>
   )
 }

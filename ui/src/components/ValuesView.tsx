@@ -59,13 +59,6 @@ export default function ValuesView({ raw }: { raw: any }) {
         )}
       </div>
 
-      {/* WHOIS card */}
-      <div className="rounded-lg border border-white/10 bg-black/20 p-3">
-        <div className="mb-1 text-sm font-medium">WHOIS</div>
-        <div className="text-sm text-gray-300">Registrar: {norm.whois.registrar || 'n/a'}</div>
-        <div className="text-sm text-gray-300">Created: {norm.whois.created || 'n/a'}</div>
-      </div>
-
       {/* SSL card */}
       <div className="rounded-lg border border-white/10 bg-black/20 p-3">
         <div className="mb-1 text-sm font-medium">SSL</div>
@@ -75,7 +68,9 @@ export default function ValuesView({ raw }: { raw: any }) {
       </div>
 
       {/* URLScan Screenshot section (replaces Evidence/Map) */}
-      {scanId && <UrlscanScreenshot scanId={scanId} />}
+      <div data-testid="evidence-section">
+        <UrlscanScreenshot scanId={scanId} />
+      </div>
 
       {/* All Values (Flattened) table */}
       <div className="rounded-lg border border-white/10 bg-black/20 p-3">

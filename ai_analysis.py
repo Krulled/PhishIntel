@@ -5,6 +5,8 @@ except Exception:
 from dotenv import load_dotenv
 import os
 import json
+import base64
+from pathlib import Path
 from urlscan import urlscan
 
 load_dotenv()
@@ -14,6 +16,10 @@ if openai is not None:
         openai.api_key = OPENAI_API_KEY
     except Exception:
         pass
+
+# Screenshot cache directory
+SCREENSHOT_CACHE_DIR = Path("Data/urlscan_screenshots")
+SCREENSHOT_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _extract_urlscan_details(result_data):
@@ -79,12 +85,19 @@ def _extract_urlscan_details(result_data):
 def query_chatgpt(url, context):
     result_data, screenshot = urlscan(url)
     urlscan_details = _extract_urlscan_details(result_data)
+    
+    # Extract URLScan UUID from result_data if available
+    urlscan_uuid = None
+    if result_data and isinstance(result_data, dict):
+        urlscan_uuid = result_data.get('task', {}).get('uuid') or result_data.get('uuid')
+    
     if openai is None or not OPENAI_API_KEY:
         return {
             "phish": "unknown",
             "reasoning": "OpenAI unavailable; AI analysis skipped.",
             "screenshot": screenshot,
             "urlscan": urlscan_details,
+            "urlscan_uuid": urlscan_uuid,
         }
 
     prompt = (
@@ -132,6 +145,7 @@ def query_chatgpt(url, context):
             "reasoning": reasoning_value,
             "screenshot": screenshot,
             "urlscan": urlscan_details,
+            "urlscan_uuid": urlscan_uuid,
         }
 
     except Exception as e:
@@ -142,7 +156,145 @@ def query_chatgpt(url, context):
             "error": str(e),
             "screenshot": screenshot,
             "urlscan": urlscan_details,
+            "urlscan_uuid": urlscan_uuid,
         }
+
+
+def annotate_screenshot(scan_id):
+    """
+    Analyze a screenshot using OpenAI Vision to identify potentially malicious UI elements.
+    Returns JSON with bounding boxes and tags, or None for graceful degradation.
+    """
+    if not openai or not OPENAI_API_KEY:
+        return None
+    
+    # Try to load screenshot from cache first
+    cached_file = SCREENSHOT_CACHE_DIR / f"{scan_id}.png"
+    screenshot_bytes = None
+    
+    if cached_file.exists():
+        try:
+            with open(cached_file, 'rb') as f:
+                screenshot_bytes = f.read()
+        except Exception:
+            pass
+    
+    # If no cached file, try to fetch fresh screenshot
+    if not screenshot_bytes:
+        try:
+            # This would need to integrate with your scan data to get the URLScan UUID
+            # For MVP, we'll return None if no cached screenshot
+            return None
+        except Exception:
+            return None
+    
+    # Encode image to base64 for OpenAI Vision
+    try:
+        image_b64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+        
+        # Create the vision prompt for malicious UI element detection
+        prompt = """Analyze this website screenshot and identify potentially malicious UI elements that could be used for phishing or fraud. Return a JSON object with this exact structure:
+
+{
+  "image": {"width": <int>, "height": <int>},
+  "boxes": [
+    {"x": <int>, "y": <int>, "w": <int>, "h": <int>, "tag": "<1-3 words>"}
+  ],
+  "model": "gpt-4o-mini",
+  "version": "v1"
+}
+
+Focus on detecting at most 7 elements like:
+- Fake login prompts
+- "Verify account" buttons  
+- QR codes
+- Urgent call-to-action buttons
+- Wallet connect prompts
+- Download buttons
+- Suspicious modals/overlays
+- Typosquatted logos/branding
+- Captcha tricks
+
+Coordinates must be integers in pixel units relative to the original image. Tags must be 1-3 words describing the suspicious element. Return only the JSON, no other text."""
+
+        # Call OpenAI Vision API
+        if hasattr(openai, 'chat') and hasattr(openai.chat, 'completions'):
+            response = openai.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "user", 
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/png;base64,{image_b64}",
+                                    "detail": "high"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                temperature=0.2,
+                max_tokens=1000
+            )
+            
+            text = response.choices[0].message.content.strip()
+        else:
+            # Fallback for older OpenAI client versions
+            return None
+            
+        # Parse the JSON response
+        try:
+            # Strip optional code fences
+            if text.startswith("```"):
+                text = text.strip('`')
+                if text.startswith("json\n"):
+                    text = text[len("json\n"):]
+            
+            result = json.loads(text)
+            
+            # Validate the structure
+            if not isinstance(result, dict):
+                return None
+            if "image" not in result or "boxes" not in result:
+                return None
+            if not isinstance(result["boxes"], list):
+                return None
+                
+            # Validate each box
+            valid_boxes = []
+            for box in result["boxes"][:7]:  # Limit to 7 boxes max
+                if (isinstance(box, dict) and 
+                    all(k in box for k in ["x", "y", "w", "h", "tag"]) and
+                    all(isinstance(box[k], (int, float)) for k in ["x", "y", "w", "h"]) and
+                    isinstance(box["tag"], str) and len(box["tag"].strip()) > 0):
+                    
+                    # Convert to integers and ensure positive dimensions
+                    valid_box = {
+                        "x": int(box["x"]),
+                        "y": int(box["y"]), 
+                        "w": max(1, int(box["w"])),
+                        "h": max(1, int(box["h"])),
+                        "tag": box["tag"].strip()[:50]  # Limit tag length
+                    }
+                    valid_boxes.append(valid_box)
+            
+            # Return validated result
+            return {
+                "image": result.get("image", {"width": 1280, "height": 720}),
+                "boxes": valid_boxes,
+                "model": "gpt-4o-mini", 
+                "version": "v1"
+            }
+            
+        except json.JSONDecodeError:
+            return None
+            
+    except Exception as e:
+        print(f"Error in screenshot annotation: {e}")
+        return None
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ from analyze import analyze_and_log
 import uuid as uuid_lib
 from datetime import datetime
 from pathlib import Path
+from ai_analysis import annotate_screenshot
 
 app = Flask(__name__)
 # Allow frontend dev server (5173) to call the API (5000)
@@ -148,10 +149,23 @@ def analyze_single():
         dns_info = _safe_get(urlscan_details, 'dns', default={}) or {}
         whois_info = _safe_get(urlscan_details, 'whois', default={}) or {}
 
+        # Try to extract URLScan UUID from the analysis result
+        # Look for URLScan UUID in various possible locations in the analysis data
+        urlscan_uuid = None
+        if ai_part and 'urlscan_uuid' in ai_part:
+            urlscan_uuid = ai_part.get('urlscan_uuid')
+        elif combined and 'urlscan_uuid' in combined:
+            urlscan_uuid = combined.get('urlscan_uuid')
+        elif urlscan_details and 'uuid' in urlscan_details:
+            urlscan_uuid = urlscan_details.get('uuid')
+        
+        # Use URLScan UUID if available, otherwise generate a random one
+        scan_uuid = urlscan_uuid if urlscan_uuid else str(uuid_lib.uuid4())
+
         result = {
             'status': 'ok',
             'verdict': _verdict_from_score(risk_score),
-            'uuid': str(uuid_lib.uuid4()),
+            'uuid': scan_uuid,
             'submitted': submitted,
             'normalized': normalized,
             'redirect_chain': [],
@@ -222,53 +236,40 @@ def recent_scans():
 def get_urlscan_screenshot(scan_id):
     """
     Fetch URLScan screenshot for a given scan ID.
-    Returns the PNG image if available, or 404 JSON if not found.
+    Returns the PNG image with proper headers, or 404 JSON if not found.
     """
     try:
+        # Validate scan_id format (basic UUID-like check)
+        if not scan_id or len(scan_id) < 10:
+            return jsonify({'error': 'invalid_scan_id'}), 400
+            
         # Check if we have the image cached locally
         cached_file = SCREENSHOT_CACHE_DIR / f"{scan_id}.png"
         if cached_file.exists():
-            return send_file(cached_file, mimetype='image/png')
+            response = send_file(cached_file, mimetype='image/png')
+            response.headers['Cache-Control'] = 'public, max-age=3600'
+            return response
         
-        # Check if we have scan data with screenshot URL
-        scan_data = SCAN_CACHE.get(scan_id)
-        if not scan_data:
-            return jsonify({'error': 'not_found'}), 404
-            
-        # For this MVP, we'll try to extract screenshot URL from scan data
-        # This is a simplified approach - in production you'd want to store 
-        # the URLScan UUID and fetch fresh screenshots
-        screenshot_url = None
+        # Try to fetch screenshot directly from URLScan.io API
+        # URLScan.io provides screenshots at: https://urlscan.io/screenshots/{uuid}.png
+        screenshot_url = f"https://urlscan.io/screenshots/{scan_id}.png"
         
-        # Try to find screenshot URL in various possible locations
-        if hasattr(scan_data, 'get'):
-            # Look for screenshot URL in different possible paths
-            detections = scan_data.get('detections', {})
-            if 'URLScan' in detections:
-                urlscan_data = detections.get('URLScan', {})
-                if isinstance(urlscan_data, dict):
-                    screenshot_url = urlscan_data.get('screenshotURL')
-        
-        # TODO: In a real implementation, you would:
-        # 1. Store the URLScan UUID when analysis is performed
-        # 2. Fetch fresh screenshot from URLScan API using the UUID
-        # 3. Cache the image locally
-        
-        # For MVP, return a placeholder response if no screenshot found
-        if not screenshot_url:
-            return jsonify({'error': 'not_found'}), 404
-            
-        # Fetch the screenshot from URLScan
         try:
-            response = requests.get(screenshot_url, timeout=10)
-            if response.status_code == 200:
-                # Cache the image
+            response = requests.get(screenshot_url, timeout=15, headers={
+                'User-Agent': 'PhishIntel/1.0'
+            })
+            if response.status_code == 200 and response.headers.get('content-type', '').startswith('image'):
+                # Cache the image locally
                 with open(cached_file, 'wb') as f:
                     f.write(response.content)
-                return send_file(cached_file, mimetype='image/png')
+                
+                # Return the cached file with proper headers
+                flask_response = send_file(cached_file, mimetype='image/png')
+                flask_response.headers['Cache-Control'] = 'public, max-age=3600'
+                return flask_response
             else:
                 return jsonify({'error': 'not_found'}), 404
-        except Exception:
+        except requests.RequestException:
             return jsonify({'error': 'not_found'}), 404
             
     except Exception as e:
@@ -277,3 +278,53 @@ def get_urlscan_screenshot(scan_id):
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
+
+
+
+@app.route('/api/ai/annotate_screenshot/<scan_id>')
+def get_screenshot_annotations(scan_id):
+    """
+    Get AI-generated annotations for a screenshot of the given scan.
+    Returns JSON with bounding boxes and tags, or 204 if no annotations available.
+    """
+    try:
+        result = annotate_screenshot(scan_id)
+        if result is None:
+            return '', 204  # No content - graceful degradation
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': 'server_error', 'message': str(e)}), 500
+
+
+@app.route('/api/test_scan_with_screenshot')
+def test_scan_with_screenshot():
+    """
+    Test endpoint that returns a mock scan result with the actual URLScan UUID
+    to test screenshot functionality.
+    """
+    test_scan_result = {
+        'status': 'ok',
+        'verdict': 'Suspicious',
+        'uuid': '0198916b-e29a-77ad-8a43-66a70133ab3b',  # Your actual URLScan UUID
+        'submitted': datetime.utcnow().isoformat() + 'Z',
+        'normalized': 'https://example-phishing-site.com',
+        'redirect_chain': [],
+        'final_url': 'https://example-phishing-site.com',
+        'whois': {'registrar': '', 'created': '', 'updated': '', 'expires': '', 'country': ''},
+        'ssl': {'issuer': '', 'valid_from': '', 'valid_to': '', 'sni': ''},
+        'domain_age_days': 30,
+        'ip': '192.168.1.1',
+        'asn': '',
+        'geolocation': {'country': '', 'region': '', 'city': ''},
+        'detections': {},
+        'blacklists': [],
+        'heuristics': {},
+        'model_explanations': [],
+        'risk_score': 75,
+    }
+    
+    # Cache this test result so it can be accessed via /api/scan/<uuid>
+    SCAN_CACHE['0198916b-e29a-77ad-8a43-66a70133ab3b'] = test_scan_result
+    
+    return jsonify(test_scan_result)
+

@@ -22,6 +22,19 @@ export type ScanResult = {
   error?: string
 }
 
+export type ScreenshotAnnotation = {
+  image: { width: number; height: number }
+  boxes: Array<{
+    x: number
+    y: number
+    w: number
+    h: number
+    tag: string
+  }>
+  model: string
+  version: string
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
 function toCurl(url: string, body: unknown): string {
@@ -123,11 +136,44 @@ export function getRecent(): string[] {
   return JSON.parse(localStorage.getItem(key) || '[]') as string[]
 }
 
-export async function getUrlscanScreenshot(scanId: string): Promise<Blob | null> {
+export async function getUrlscanScreenshotBlob(scanId: string): Promise<Blob | null> {
   try {
     const res = await doFetch(`${API_BASE_URL}/api/urlscan/${scanId}/screenshot`)
-    if (res.ok) {
+    if (res.ok && res.headers.get('content-type')?.includes('image')) {
       return await res.blob()
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+// Backward compatibility
+export const getUrlscanScreenshot = getUrlscanScreenshotBlob
+
+export function isLikelyImageUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') return false
+  
+  const trimmed = url.trim()
+  if (!trimmed.startsWith('http')) return false
+  
+  // Check for common image extensions
+  const hasImageExtension = /\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i.test(trimmed)
+  
+  // Check for URLScan screenshot pattern
+  const isUrlscanScreenshot = trimmed.includes('/screenshots/') || trimmed.includes('urlscan.io')
+  
+  return hasImageExtension || isUrlscanScreenshot
+}
+
+export async function getScreenshotAnnotations(scanId: string): Promise<ScreenshotAnnotation | null> {
+  try {
+    const res = await doFetch(`${API_BASE_URL}/api/ai/annotate_screenshot/${scanId}`)
+    if (res.status === 204) {
+      return null // No annotations available
+    }
+    if (res.ok) {
+      return (await res.json()) as ScreenshotAnnotation
     }
     return null
   } catch {
