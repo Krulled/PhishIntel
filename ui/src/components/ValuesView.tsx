@@ -1,6 +1,7 @@
 import React from 'react'
 import { normalizeScan, flattenForTable, type NormalizedScan } from '../services/valuesNormalizer'
 import UrlscanScreenshot from './UrlscanScreenshot'
+import AINotes from './AINotes'
 
 export default function ValuesView({ raw }: { raw: any }) {
   const norm: NormalizedScan = normalizeScan(raw)
@@ -33,17 +34,8 @@ export default function ValuesView({ raw }: { raw: any }) {
         </div>
       </div>
 
-      {/* AI notes immediately under Verdict */}
-      {norm.notes && norm.notes.length > 0 && (
-        <div className="rounded-lg border border-indigo-400/30 bg-indigo-500/10 p-3">
-          <div className="mb-1 text-sm font-medium">AI notes</div>
-          <ul className="list-disc pl-5 text-sm text-indigo-200">
-            {norm.notes.slice(0, 3).map((m, i) => (
-              <li key={i}>{m}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* AI notes immediately under Verdict - now fetches and merges screenshot notes */}
+      <AINotes notes={norm.notes || []} scanId={scanId} />
 
       {/* Redirect path */}
       <div className="rounded-lg border border-white/10 bg-black/20 p-3">

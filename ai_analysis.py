@@ -160,6 +160,206 @@ def query_chatgpt(url, context):
         }
 
 
+def analyze_screenshot_bytes(image_bytes: bytes, max_notes: int = 6) -> list[str]:
+    """
+    Analyze screenshot bytes using OpenAI Vision to extract short notes about potentially malicious UI elements.
+    Returns a list of short phrases describing suspicious elements, or empty list on error.
+    """
+    if not openai or not OPENAI_API_KEY or not image_bytes:
+        return []
+    
+    # Security: Limit image size to prevent abuse (8MB max)
+    if len(image_bytes) > 8 * 1024 * 1024:
+        print("Error: Image size exceeds 8MB limit")
+        return []
+    
+    try:
+        # Encode image to base64 for OpenAI Vision
+        image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+        
+        prompt = f"""Analyze this website screenshot and identify potentially malicious UI cues that could be used for phishing or fraud. Return up to {max_notes} short bullet notes (1 line each, ≤6 words per note) describing suspicious elements like:
+
+- Fake login prompts
+- Password input fields  
+- "Verify account" buttons
+- "Download document" links
+- QR codes for wallets
+- Urgent CTAs
+- Suspicious popups
+- Typos in branding
+- Wallet connect prompts
+
+Return ONLY a simple bulleted list, no other text. Each note should be very concise. If no suspicious elements are found, return an empty response."""
+
+        # Call OpenAI Vision API
+        if hasattr(openai, 'chat') and hasattr(openai.chat, 'completions'):
+            response = openai.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "user", 
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/png;base64,{image_b64}",
+                                    "detail": "high"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                temperature=0.3,
+                max_tokens=400,
+                timeout=30
+            )
+            
+            text = response.choices[0].message.content.strip()
+        else:
+            # Fallback for older OpenAI client versions
+            return []
+            
+        # Parse the response into a list of notes
+        if not text:
+            return []
+            
+        # Split by lines and clean up
+        notes = []
+        for line in text.split('\n'):
+            line = line.strip()
+            # Remove bullet points and numbering
+            line = line.lstrip('•-*123456789. ')
+            if line and len(line) <= 50:  # Reasonable max length
+                notes.append(line)
+        
+        return notes[:max_notes]
+        
+    except Exception as e:
+        print(f"Error in analyze_screenshot_bytes: {e}")
+        return []
+
+
+def detect_boxes_on_screenshot(image_bytes: bytes, max_boxes: int = 7) -> dict[str, any]:
+    """
+    Detect bounding boxes for suspicious UI elements in a screenshot.
+    Returns dict with image dimensions and boxes, or empty structure on error.
+    """
+    if not openai or not OPENAI_API_KEY or not image_bytes:
+        return {"image": {}, "boxes": []}
+    
+    # Security: Limit image size to prevent abuse (8MB max)
+    if len(image_bytes) > 8 * 1024 * 1024:
+        print("Error: Image size exceeds 8MB limit")
+        return {"image": {}, "boxes": []}
+    
+    try:
+        # Encode image to base64 for OpenAI Vision
+        image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+        
+        prompt = f"""Analyze this website screenshot and identify potentially malicious UI elements that could be used for phishing or fraud. Return a JSON object with this exact structure:
+
+{{
+  "image": {{"width": <int>, "height": <int>}},
+  "boxes": [
+    {{"x": <int>, "y": <int>, "w": <int>, "h": <int>, "tag": "<1-3 words>"}}
+  ]
+}}
+
+Focus on detecting at most {max_boxes} elements like:
+- Fake login prompts
+- "Verify account" buttons  
+- QR codes
+- Urgent call-to-action buttons
+- Wallet connect prompts
+- Download buttons
+- Suspicious modals/overlays
+- Typosquatted logos/branding
+- Captcha tricks
+
+Coordinates must be integers in pixel units relative to the original image. Tags must be 1-3 words describing the suspicious element. Return only the JSON, no other text."""
+
+        # Call OpenAI Vision API
+        if hasattr(openai, 'chat') and hasattr(openai.chat, 'completions'):
+            response = openai.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "user", 
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/png;base64,{image_b64}",
+                                    "detail": "high"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                temperature=0.2,
+                max_tokens=1000,
+                timeout=30
+            )
+            
+            text = response.choices[0].message.content.strip()
+        else:
+            # Fallback for older OpenAI client versions
+            return {"image": {}, "boxes": []}
+            
+        # Parse the JSON response
+        try:
+            # Strip optional code fences
+            if text.startswith("```"):
+                text = text.strip('`')
+                if text.startswith("json\n"):
+                    text = text[len("json\n"):]
+            
+            result = json.loads(text)
+            
+            # Validate the structure
+            if not isinstance(result, dict):
+                return {"image": {}, "boxes": []}
+            if "image" not in result or "boxes" not in result:
+                return {"image": {}, "boxes": []}
+            if not isinstance(result["boxes"], list):
+                return {"image": {}, "boxes": []}
+                
+            # Validate each box
+            valid_boxes = []
+            for box in result["boxes"][:max_boxes]:  # Limit to max_boxes
+                if (isinstance(box, dict) and 
+                    all(k in box for k in ["x", "y", "w", "h", "tag"]) and
+                    all(isinstance(box[k], (int, float)) for k in ["x", "y", "w", "h"]) and
+                    isinstance(box["tag"], str) and len(box["tag"].strip()) > 0):
+                    
+                    # Convert to integers and ensure positive dimensions
+                    valid_box = {
+                        "x": int(box["x"]),
+                        "y": int(box["y"]), 
+                        "w": max(1, int(box["w"])),
+                        "h": max(1, int(box["h"])),
+                        "tag": box["tag"].strip()[:30]  # Limit tag length
+                    }
+                    valid_boxes.append(valid_box)
+            
+            # Return validated result
+            return {
+                "image": result.get("image", {"width": 1280, "height": 720}),
+                "boxes": valid_boxes,
+                "model": "gpt-4o-mini", 
+                "version": "v1"
+            }
+            
+        except json.JSONDecodeError:
+            return {"image": {}, "boxes": []}
+            
+    except Exception as e:
+        print(f"Error in detect_boxes_on_screenshot: {e}")
+        return {"image": {}, "boxes": []}
+
+
 def annotate_screenshot(scan_id):
     """
     Analyze a screenshot using OpenAI Vision to identify potentially malicious UI elements.
@@ -237,7 +437,8 @@ Coordinates must be integers in pixel units relative to the original image. Tags
                     }
                 ],
                 temperature=0.2,
-                max_tokens=1000
+                max_tokens=1000,
+                timeout=30
             )
             
             text = response.choices[0].message.content.strip()

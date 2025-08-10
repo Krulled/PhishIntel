@@ -7,7 +7,7 @@ from analyze import analyze_and_log
 import uuid as uuid_lib
 from datetime import datetime
 from pathlib import Path
-from ai_analysis import annotate_screenshot
+from ai_analysis import annotate_screenshot, analyze_screenshot_bytes, detect_boxes_on_screenshot
 
 app = Flask(__name__)
 # Allow frontend dev server (5173) to call the API (5000)
@@ -279,6 +279,112 @@ def get_urlscan_screenshot(scan_id):
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
 
+
+
+@app.route('/api/ai/screenshot-notes/<scan_id>')
+def get_screenshot_notes(scan_id):
+    """
+    Get AI-generated short notes for a screenshot of the given scan.
+    Returns JSON with notes array, or 204 if no notes available.
+    """
+    try:
+        # Validate scan_id format (basic UUID-like check)
+        if not scan_id or len(scan_id) < 10:
+            return jsonify({'error': 'invalid_scan_id'}), 400
+            
+        # Check if we have the image cached locally
+        cached_file = SCREENSHOT_CACHE_DIR / f"{scan_id}.png"
+        screenshot_bytes = None
+        
+        if cached_file.exists():
+            try:
+                with open(cached_file, 'rb') as f:
+                    screenshot_bytes = f.read()
+            except Exception:
+                pass
+        
+        # If no cached screenshot, try to fetch from URLScan.io
+        if not screenshot_bytes:
+            try:
+                screenshot_url = f"https://urlscan.io/screenshots/{scan_id}.png"
+                response = requests.get(screenshot_url, timeout=15, headers={
+                    'User-Agent': 'PhishIntel/1.0'
+                })
+                if response.status_code == 200 and response.headers.get('content-type', '').startswith('image'):
+                    screenshot_bytes = response.content
+                    # Cache the image
+                    with open(cached_file, 'wb') as f:
+                        f.write(screenshot_bytes)
+                else:
+                    return '', 204  # No screenshot available
+            except Exception:
+                return '', 204  # No screenshot available
+        
+        # Analyze the screenshot
+        notes = analyze_screenshot_bytes(screenshot_bytes, max_notes=6)
+        
+        if not notes:
+            return '', 204  # No notes available
+        
+        return jsonify({
+            'notes': notes,
+            'model': 'gpt-4o-mini',
+            'version': 'v1'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': 'server_error', 'message': str(e)}), 500
+
+
+@app.route('/api/ai/screenshot-boxes/<scan_id>')
+def get_screenshot_boxes(scan_id):
+    """
+    Get AI-generated bounding boxes for suspicious elements in a screenshot.
+    Returns JSON with boxes array, or 204 if no boxes available.
+    """
+    try:
+        # Validate scan_id format (basic UUID-like check)
+        if not scan_id or len(scan_id) < 10:
+            return jsonify({'error': 'invalid_scan_id'}), 400
+            
+        # Check if we have the image cached locally
+        cached_file = SCREENSHOT_CACHE_DIR / f"{scan_id}.png"
+        screenshot_bytes = None
+        
+        if cached_file.exists():
+            try:
+                with open(cached_file, 'rb') as f:
+                    screenshot_bytes = f.read()
+            except Exception:
+                pass
+        
+        # If no cached screenshot, try to fetch from URLScan.io
+        if not screenshot_bytes:
+            try:
+                screenshot_url = f"https://urlscan.io/screenshots/{scan_id}.png"
+                response = requests.get(screenshot_url, timeout=15, headers={
+                    'User-Agent': 'PhishIntel/1.0'
+                })
+                if response.status_code == 200 and response.headers.get('content-type', '').startswith('image'):
+                    screenshot_bytes = response.content
+                    # Cache the image
+                    with open(cached_file, 'wb') as f:
+                        f.write(screenshot_bytes)
+                else:
+                    return '', 204  # No screenshot available
+            except Exception:
+                return '', 204  # No screenshot available
+        
+        # Detect boxes in the screenshot
+        result = detect_boxes_on_screenshot(screenshot_bytes, max_boxes=7)
+        
+        if not result.get('boxes'):
+            return '', 204  # No boxes detected
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'error': 'server_error', 'message': str(e)}), 500
 
 
 @app.route('/api/ai/annotate_screenshot/<scan_id>')

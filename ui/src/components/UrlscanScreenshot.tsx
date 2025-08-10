@@ -1,8 +1,17 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { getUrlscanScreenshotBlob, isLikelyImageUrl } from '../services/apiClient'
+import { getUrlscanScreenshotBlob, getScreenshotBoxes, isLikelyImageUrl, type BoxesResponse } from '../services/apiClient'
+import { computeOverlayRects, applyOverlayTransform } from '../utils/overlayMath'
 
 interface UrlscanScreenshotProps {
   scanId?: string | null
+}
+
+interface Box {
+  x: number
+  y: number
+  w: number
+  h: number
+  tag: string
 }
 
 export default function UrlscanScreenshot({ scanId }: UrlscanScreenshotProps) {
@@ -10,7 +19,10 @@ export default function UrlscanScreenshot({ scanId }: UrlscanScreenshotProps) {
   const [pastedUrl, setPastedUrl] = useState('')
   const [loading, setLoading] = useState<boolean>(!!scanId)
   const [error, setError] = useState<string>()
+  const [boxes, setBoxes] = useState<Box[]>([])
+  const [imageNaturalSize, setImageNaturalSize] = useState<{width: number, height: number} | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const imageRef = useRef<HTMLImageElement>(null)
 
   useEffect(() => {
     let alive = true
@@ -24,9 +36,15 @@ export default function UrlscanScreenshot({ scanId }: UrlscanScreenshotProps) {
 
       setLoading(true)
       setError(undefined)
+      setBoxes([])
 
       try {
-        const blob = await getUrlscanScreenshotBlob(scanId)
+        // Fetch screenshot and boxes in parallel
+        const [blob, boxesResponse] = await Promise.all([
+          getUrlscanScreenshotBlob(scanId),
+          getScreenshotBoxes(scanId)
+        ])
+        
         if (!alive) return
 
         if (blob) {
@@ -34,6 +52,11 @@ export default function UrlscanScreenshot({ scanId }: UrlscanScreenshotProps) {
           currentBlobUrl = url
           setBlobUrl(url)
           setError(undefined)
+          
+          // Set boxes if available
+          if (boxesResponse?.boxes) {
+            setBoxes(boxesResponse.boxes)
+          }
         } else {
           setError('not_found')
         }
@@ -72,7 +95,28 @@ export default function UrlscanScreenshot({ scanId }: UrlscanScreenshotProps) {
     if (isLikelyImageUrl(pastedUrl)) {
       setBlobUrl(pastedUrl)
       setError(undefined)
+      setBoxes([]) // Clear boxes for pasted URLs since we can't analyze them
     }
+  }
+
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget
+    setImageNaturalSize({
+      width: img.naturalWidth,
+      height: img.naturalHeight
+    })
+  }
+
+  // Calculate scaling factor between display size and natural size for overlay positioning
+  const getScalingFactor = () => {
+    if (!imageRef.current || !imageNaturalSize) return { scaleX: 1, scaleY: 1, offsetX: 0, offsetY: 0 }
+    
+    const displayRect = imageRef.current.getBoundingClientRect()
+    const containerRect = imageRef.current.parentElement?.getBoundingClientRect()
+    
+    if (!containerRect) return { scaleX: 1, scaleY: 1, offsetX: 0, offsetY: 0 }
+    
+    return computeOverlayRects(imageNaturalSize, { width: displayRect.width, height: displayRect.height }, { width: containerRect.width, height: containerRect.height })
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -116,16 +160,45 @@ export default function UrlscanScreenshot({ scanId }: UrlscanScreenshotProps) {
       {!loading && blobUrl && (
         <div className="relative">
           <img
+            ref={imageRef}
             src={blobUrl}
             alt={`URLScan screenshot for ${scanId || 'pasted URL'}`}
             className="mx-auto max-h-[520px] w-full object-contain cursor-zoom-in rounded-lg border border-zinc-700/30"
             onClick={handleImageClick}
             title="Open full-size screenshot"
+            onLoad={handleImageLoad}
             onError={() => {
               setError('image_load_failed')
               setBlobUrl(undefined)
             }}
           />
+          
+          {/* AI-detected suspicious element overlays */}
+          {boxes.length > 0 && imageNaturalSize && (
+            <div className="absolute inset-0 pointer-events-none">
+              {boxes.map((box, index) => {
+                const transform = getScalingFactor()
+                const position = applyOverlayTransform(box, transform)
+                
+                return (
+                  <div
+                    key={index}
+                    className="absolute border-2 border-red-500 bg-red-500/10"
+                    style={{
+                      left: `${position.left}px`,
+                      top: `${position.top}px`,
+                      width: `${position.width}px`,
+                      height: `${position.height}px`,
+                    }}
+                  >
+                    <div className="absolute -top-6 left-0 bg-red-500 text-white text-xs px-1 py-0.5 rounded whitespace-nowrap max-w-[120px] truncate">
+                      {box.tag}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 

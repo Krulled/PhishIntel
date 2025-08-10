@@ -166,6 +166,44 @@ export function isLikelyImageUrl(url: string): boolean {
   return hasImageExtension || isUrlscanScreenshot
 }
 
+export async function getScreenshotNotes(scanId: string): Promise<string[]> {
+  try {
+    const res = await doFetch(`${API_BASE_URL}/api/ai/screenshot-notes/${scanId}`)
+    if (res.status === 204 || !res.ok) {
+      return [] // No notes available
+    }
+    const data = await res.json()
+    return Array.isArray(data?.notes) ? data.notes : []
+  } catch {
+    return []
+  }
+}
+
+export type BoxesResponse = {
+  image: { width: number; height: number }
+  boxes: Array<{
+    x: number
+    y: number
+    w: number
+    h: number
+    tag: string
+  }>
+  model: string
+  version: string
+}
+
+export async function getScreenshotBoxes(scanId: string): Promise<BoxesResponse | null> {
+  try {
+    const res = await doFetch(`${API_BASE_URL}/api/ai/screenshot-boxes/${scanId}`)
+    if (res.status === 204 || !res.ok) {
+      return null // No boxes available
+    }
+    return (await res.json()) as BoxesResponse
+  } catch {
+    return null
+  }
+}
+
 export async function getScreenshotAnnotations(scanId: string): Promise<ScreenshotAnnotation | null> {
   try {
     const res = await doFetch(`${API_BASE_URL}/api/ai/annotate_screenshot/${scanId}`)
