@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import Home from './Home'
 
@@ -14,10 +14,11 @@ describe('Home', () => {
     // Check for URL input
     const input = screen.getByPlaceholderText(/enter url to analyze/i)
     expect(input).toBeInTheDocument()
-    expect(input).toHaveAttribute('type', 'text')
+    expect(input).toHaveAttribute('inputmode', 'url')
 
-    // Check for Analyze button
-    const button = screen.getByRole('button', { name: /analyze/i })
+    // Check for Analyze button - get the one from the form specifically
+    const form = screen.getByRole('form')
+    const button = within(form).getByRole('button', { name: /analyze/i })
     expect(button).toBeInTheDocument()
     expect(button).toBeDisabled() // Should be disabled when input is empty
   })
@@ -29,8 +30,8 @@ describe('Home', () => {
       </MemoryRouter>
     )
 
-    // Check for live stats
-    expect(screen.getByText(/live/i)).toBeInTheDocument()
+    // Check for live stats - use getAllByText to handle multiple occurrences
+    expect(screen.getAllByText(/live/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/scans\/min/i)).toBeInTheDocument()
 
     // Check for recent scans ticker
@@ -57,7 +58,7 @@ describe('Home', () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByText('PHISHINTEL')).toBeInTheDocument()
+    expect(screen.getAllByText('PHISHINTEL').length).toBeGreaterThan(0)
     expect(screen.getByText(/analyze urls for phishing threats/i)).toBeInTheDocument()
   })
 })

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import LiveStats from '../components/LiveStats'
 import RecentScansTicker from '../components/RecentScansTicker'
 
@@ -77,9 +77,9 @@ export default function Home() {
 
             <div className="mt-6 text-xs text-gray-400 text-center lg:text-left">
               By submitting you agree to share results with the security community. 
-              See <a className="underline hover:text-gray-300" href="/terms" target="_blank" rel="noreferrer">Terms</a>, 
-              <a className="underline hover:text-gray-300" href="/privacy" target="_blank" rel="noreferrer"> Privacy</a>, and 
-              <a className="underline hover:text-gray-300" href="/security.html" target="_blank" rel="noreferrer"> Security</a>.
+              See <Link className="underline hover:text-gray-300" to="/terms">Terms</Link>, 
+              <Link className="underline hover:text-gray-300" to="/privacy"> Privacy</Link>, and 
+              <Link className="underline hover:text-gray-300" to="/security"> Security</Link>.
             </div>
 
 

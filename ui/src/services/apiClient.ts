@@ -13,7 +13,7 @@ export type ScanResult = {
   domain_age_days: number
   ip: string
   asn: string
-  geolocation: { country: string; region: string; city: string }
+
   detections: Record<string, unknown>
   blacklists: string[]
   heuristics: Record<string, { pass?: boolean; score?: number } | unknown>
@@ -94,7 +94,7 @@ export async function analyze(inputValue: string): Promise<{ result: ScanResult;
         domain_age_days: 0,
         ip: '',
         asn: '',
-        geolocation: { country: '', region: '', city: '' },
+
         detections: {},
         blacklists: [],
         heuristics: {},

@@ -6,7 +6,7 @@ const okResult: ScanResult = {
   normalized: 'http://example.com', redirect_chain: [], final_url: 'http://example.com',
   whois: { registrar: '', created: '', updated: '', expires: '', country: '' },
   ssl: { issuer: '', valid_from: '', valid_to: '', sni: '' },
-  domain_age_days: 0, ip: '', asn: '', geolocation: { country: '', region: '', city: '' },
+  domain_age_days: 0, ip: '', asn: '',
   detections: {}, blacklists: [], heuristics: {}, model_explanations: [], risk_score: 10,
 }
 

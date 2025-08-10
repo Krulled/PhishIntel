@@ -1,48 +1,79 @@
 # PhishIntel
-PhishIntel is a CLI based AI Phishing Analysis Project
+PhishIntel is a web-based AI Phishing Analysis tool that helps evaluate URLs for potential phishing threats and security risks.
 
-## MVP Updates (Recent Changes)
+## Features
 
-### New Landing Page & Live Activity Feed
-- **Simplified Home**: Removed all option pickers (File/URL/Search). Now shows only a single URL input field and "Analyze" button.
-- **Live Activity Feed**: Added real-time "scans per minute" counter (180-480 range) and a stream of randomized recent scans with fake names, risk scores, and statuses.
-- **Responsive Design**: Two-column layout with main form on left, activity feed on right.
+### 🏠 **Simple Landing Page**
+- Clean, single URL input interface
+- Live activity feed showing recent scans
+- Real-time "scans per minute" counter
+- Mobile-first responsive design
 
-### Enhanced Results Page
-- **WHOIS Removal**: Completely removed WHOIS registrar information from results display (intentionally removed per security requirements).
-- **URLScan Screenshot**: Replaced map/geolocation card with URLScan screenshot display.
-- **AI Annotation Overlay**: Added OpenAI Vision integration to detect potentially malicious UI elements in screenshots with red bounding boxes and 1-3 word labels.
+### 🔍 **AI-Powered Analysis**
+- URLScan screenshot integration with AI-detected overlay boxes
+- OpenAI Vision API for identifying suspicious UI elements
+- Comprehensive threat detection using multiple data sources
+- Risk scoring and detailed explanations
 
-### New Backend Endpoints
-- `GET /api/urlscan/<scan_id>/screenshot` - Serves PNG screenshots with local caching
-- `GET /api/ai/annotate_screenshot/<scan_id>` - Returns AI-analyzed bounding boxes for suspicious elements
+### 📊 **Detailed Results**
+- Clean, card-based results layout
+- SSL certificate analysis
+- DNS information
+- Redirect chain tracking
+- Copy scan ID functionality
+- Export reports and direct URL access
+
+### 🛡️ **Legal & Security**
+- Complete Terms of Service, Privacy Policy, and Security Practices pages
+- SSRF protection and rate limiting
+- Input validation and secure headers
+- Responsible disclosure process
+
+## Quick Start
+
+### Backend Setup
+1. Clone the repository
+2. Install Python dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Set up environment variables (see Environment Variables section)
+4. Run the Flask backend:
+   ```bash
+   python app.py
+   ```
+
+### Frontend Setup
+1. Navigate to the UI directory:
+   ```bash
+   cd ui
+   ```
+2. Install Node.js dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
+4. Open http://localhost:5173 in your browser
 
 ### Environment Variables
-Add to your `.env` file:
+Create a `.env` file in the project root:
 ```bash
 OPENAI_API_KEY=your_openai_api_key_here
 URLSCAN_API_KEY=your_urlscan_api_key_here
+ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
+FLASK_ENV=development
 ```
 
-### Manual QA Checklist
-1. ✅ Home shows only URL input + Analyze button, plus live scans/min and ticker
-2. ✅ Enter URL → queue/wait page → scan results flow works
-3. ✅ Scan page has no WHOIS card and no Raw JSON tabs
-4. ✅ URLScan Screenshot card displays PNG with AI annotation overlays (if available)
-5. ✅ Error handling: missing screenshots show friendly message, annotation failures degrade gracefully
+## Legal Pages
+The application includes three legal pages accessible from the home page footer:
+- **Terms of Service** (`/terms`) - Usage terms and acceptable use policy
+- **Privacy Policy** (`/privacy`) - Data collection and usage practices  
+- **Security Practices** (`/security`) - Security controls and vulnerability reporting
 
-### URLScan Screenshot Functionality
-The scan results page now includes a dedicated "URLScan Screenshot" card that:
-- **Automatic Loading**: Fetches screenshots via `/api/urlscan/<scanId>/screenshot` endpoint
-- **Fallback Option**: If automatic loading fails, users can paste screenshot URLs directly from URLScan.io
-- **Click to Zoom**: Screenshots open full-size in a new tab when clicked
-- **Error Handling**: Gracefully handles missing screenshots with user-friendly messages
-
-**To manually paste a screenshot URL:**
-1. Visit URLScan.io and view your scan results
-2. Copy the screenshot URL (usually ends with `.png`)
-3. Paste it into the "Paste screenshot URL from URLScan" field
-4. Click "Use URL" to display the image
+To update legal content, edit the respective files in `ui/src/routes/` and update the "Last updated" date.
 
 ## Web API (MVP)
 

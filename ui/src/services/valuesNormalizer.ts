@@ -21,9 +21,6 @@ export type NormalizedScan = {
   notes: string[] | null
   createdAt: string | null
   updatedAt: string | null
-  country: string | null
-  region: string | null
-  city: string | null
 }
 
 function get<T = unknown>(obj: any, paths: string[]): T | null {
@@ -111,9 +108,7 @@ export function normalizeScan(raw: any): NormalizedScan {
   const createdAt = isoAndReadable(get<string>(raw, ['created_at', 'createdAt', 'submitted_at', 'submitted']))
   const updatedAt = isoAndReadable(get<string>(raw, ['updated_at', 'updatedAt']))
 
-  const country = get<string>(raw, ['geo.country', 'geolocation.country', 'location.country'])
-  const region = get<string>(raw, ['geo.region', 'geolocation.region', 'location.region'])
-  const city = get<string>(raw, ['geo.city', 'geolocation.city', 'location.city'])
+
 
   return {
     id: id || null,
@@ -138,9 +133,6 @@ export function normalizeScan(raw: any): NormalizedScan {
     notes,
     createdAt,
     updatedAt,
-    country: country || null,
-    region: region || null,
-    city: city || null,
   }
 }
 
