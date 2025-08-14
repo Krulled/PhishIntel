@@ -23,7 +23,7 @@ Before you start, make sure you have:
 
 ### Step 2: Configure the Web Service
 1. **Name**: `phishintel-backend` (or any name you prefer)
-2. **Runtime**: `Python 3`
+2. **Runtime**: `Python 3.11` (important: use 3.11, not 3.13)
 3. **Build Command**: `pip install -r requirements.txt`
 4. **Start Command**: `python app.py`
 5. **Plan**: Choose "Free" for testing (can upgrade later)
@@ -114,6 +114,11 @@ In the "Environment Variables" section, add:
 
 ### Common Issues:
 
+**❌ Python Version Compatibility Errors**
+- **Problem**: Build fails with scikit-learn compilation errors
+- **Solution**: Use Python 3.11 instead of 3.13. The project includes `runtime.txt` and `.python-version` files to specify this.
+- **Alternative**: If Render still uses Python 3.13, manually select Python 3.11 in the service settings
+
 **❌ CORS Errors**
 - Make sure `ALLOWED_ORIGINS` on Render includes your exact Vercel URL
 - Check that both services are deployed and running
@@ -125,6 +130,7 @@ In the "Environment Variables" section, add:
 **❌ Build Failures**
 - Check build logs in Render/Vercel dashboards
 - Ensure all dependencies are in `requirements.txt` and `package.json`
+- Try clearing the build cache in Render settings
 
 **❌ Frontend Can't Reach Backend**
 - Verify `VITE_API_URL` points to correct Render URL
