@@ -131,6 +131,7 @@ In the "Environment Variables" section, add:
 - Check build logs in Render/Vercel dashboards
 - Ensure all dependencies are in `requirements.txt` and `package.json`
 - Try clearing the build cache in Render settings
+- **Dependency Conflicts**: If you see packaging version conflicts, the project uses `pip-audit` instead of `safety` to avoid conflicts
 
 **❌ Frontend Can't Reach Backend**
 - Verify `VITE_API_URL` points to correct Render URL

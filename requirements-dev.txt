@@ -1,0 +1,11 @@
+# Development dependencies for local development only
+# These are not needed for production deployment
+
+# Security audit tools (use one or the other, not both)
+pip-audit==2.6.1
+# safety==2.3.5  # Uncomment if you prefer safety over pip-audit
+
+# Additional development tools
+pytest==7.4.3
+black==23.12.1
+flake8==6.1.0

@@ -10,6 +10,5 @@ tldextract==5.1.1
 vt-py==0.18.0
 requests==2.31.0
 
-# Development/audit dependencies
+# Development/audit dependencies - using compatible versions
 pip-audit==2.6.1
-safety==2.3.5
