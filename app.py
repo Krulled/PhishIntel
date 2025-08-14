@@ -10,8 +10,13 @@ from pathlib import Path
 from ai_analysis import annotate_screenshot, analyze_screenshot_bytes, detect_boxes_on_screenshot
 
 app = Flask(__name__)
-# Allow frontend dev server (5173) to call the API (5000)
-CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}})
+
+# Get allowed origins from environment variable, fallback to localhost and Vercel for development
+allowed_origins = os.environ.get('ALLOWED_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173,https://phish-intel.vercel.app')
+origins_list = [origin.strip() for origin in allowed_origins.split(',')]
+
+# Configure CORS to allow frontend to call the API
+CORS(app, resources={r"/*": {"origins": origins_list}})
 
 # In-memory cache for scan results (per-process)
 SCAN_CACHE = {}
