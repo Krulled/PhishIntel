@@ -1,21 +1,34 @@
 try:
-    import openai
+    from openai import OpenAI
 except Exception:
-    openai = None
+    OpenAI = None
 from dotenv import load_dotenv
 import os
 import json
 import base64
 from pathlib import Path
 from urlscan import urlscan
+import httpx
 
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-if openai is not None:
+
+# Initialize OpenAI client
+client = None
+if OpenAI is not None and OPENAI_API_KEY:
     try:
-        openai.api_key = OPENAI_API_KEY
-    except Exception:
-        pass
+        # Check if proxy is needed
+        proxy_url = os.getenv("OPENAI_PROXY", "")
+        if proxy_url:
+            # Use httpx client with proxy support
+            http_client = httpx.Client(proxies=proxy_url, timeout=30.0)
+            client = OpenAI(api_key=OPENAI_API_KEY, http_client=http_client)
+        else:
+            # Direct connection without proxy
+            client = OpenAI(api_key=OPENAI_API_KEY)
+    except Exception as e:
+        print(f"Failed to initialize OpenAI client: {e}")
+        client = None
 
 # Screenshot cache directory
 SCREENSHOT_CACHE_DIR = Path("Data/urlscan_screenshots")
@@ -82,6 +95,171 @@ def _extract_urlscan_details(result_data):
     return {"ssl": ssl_info, "dns": dns_info, "whois": whois_info}
 
 
+def analyze_screenshot_and_text(url: str, screenshot_bytes: bytes = None, max_notes: int = 6) -> dict:
+    """
+    Analyze URL and optional screenshot to detect phishing with notes.
+    
+    Args:
+        url: The URL to analyze
+        screenshot_bytes: Optional screenshot bytes for visual analysis
+        max_notes: Maximum number of notes to return (default 6)
+        
+    Returns:
+        dict with keys:
+        - phish: "yes"|"no"|"unknown"
+        - reasoning: Short explanation (≤140 chars)
+        - notes: List of short notes (≤6 words each)
+    """
+    # Default response for errors
+    default_response = {
+        "phish": "unknown",
+        "reasoning": "Analysis unavailable",
+        "notes": ["Analysis unavailable"]
+    }
+    
+    if not client or not OPENAI_API_KEY:
+        return default_response
+    
+    try:
+        # Build the analysis prompt
+        if screenshot_bytes:
+            # Analyze with screenshot
+            # Security: Limit image size to prevent abuse (8MB max)
+            if len(screenshot_bytes) > 8 * 1024 * 1024:
+                print("Error: Image size exceeds 8MB limit")
+                screenshot_bytes = None
+        
+        if screenshot_bytes:
+            # Encode image to base64 for OpenAI Vision
+            image_b64 = base64.b64encode(screenshot_bytes).decode('utf-8')
+            
+            prompt = f"""Analyze this URL and screenshot for phishing indicators: {url}
+
+Return ONLY a JSON object with exactly this structure:
+{{
+  "phish": "yes" or "no" or "unknown",
+  "reasoning": "A single sentence explanation (max 140 characters)",
+  "notes": ["note 1", "note 2", ...] // Maximum {max_notes} notes, each ≤6 words
+}}
+
+Focus on:
+- Fake login forms
+- Urgent calls to action
+- Typosquatting in URL/branding
+- Suspicious popups or overlays
+- QR codes for crypto/wallets
+- "Verify account" buttons
+- Download prompts
+- Data harvesting forms
+
+Be concise. Each note should describe a specific indicator found."""
+
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{image_b64}",
+                                "detail": "high"
+                            }
+                        }
+                    ]
+                }
+            ]
+        else:
+            # Text-only analysis
+            prompt = f"""Analyze this URL for phishing indicators: {url}
+
+Return ONLY a JSON object with exactly this structure:
+{{
+  "phish": "yes" or "no" or "unknown",
+  "reasoning": "A single sentence explanation (max 140 characters)",
+  "notes": ["note 1", "note 2", ...] // Maximum {max_notes} notes, each ≤6 words
+}}
+
+Analyze the URL structure for:
+- Domain typosquatting
+- Suspicious subdomains
+- Deceptive paths
+- Known phishing patterns
+- Unusual TLDs
+
+Be concise. Each note should describe a specific indicator found."""
+
+            messages = [
+                {"role": "user", "content": prompt}
+            ]
+        
+        # Call OpenAI API
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.3,
+            max_tokens=400,
+            timeout=30
+        )
+        
+        text = response.choices[0].message.content.strip()
+        
+        # Strip optional code fences
+        if text.startswith("```"):
+            text = text.strip('`')
+            if text.startswith("json\n"):
+                text = text[len("json\n"):]
+        
+        # Parse JSON response
+        result = json.loads(text)
+        
+        # Validate and sanitize the response
+        phish_value = str(result.get("phish", "unknown")).lower()
+        if phish_value not in ["yes", "no", "unknown"]:
+            phish_value = "unknown"
+        
+        # Truncate reasoning to 140 chars
+        reasoning_value = str(result.get("reasoning", "Analysis completed"))[:140].strip()
+        if not reasoning_value:
+            reasoning_value = "No specific indicators detected" if phish_value == "no" else "Analysis completed"
+        
+        # Process notes
+        notes_raw = result.get("notes", [])
+        if not isinstance(notes_raw, list):
+            notes_raw = []
+        
+        notes = []
+        for note in notes_raw[:max_notes]:
+            if isinstance(note, str):
+                # Clean and validate note
+                note = note.strip()
+                # Limit to 6 words
+                words = note.split()
+                if len(words) > 6:
+                    note = ' '.join(words[:6])
+                if note:
+                    notes.append(note)
+        
+        # Ensure at least one note
+        if not notes:
+            if phish_value == "yes":
+                notes = ["Suspicious indicators detected"]
+            elif phish_value == "no":
+                notes = ["No phishing indicators"]
+            else:
+                notes = ["Analysis inconclusive"]
+        
+        return {
+            "phish": phish_value,
+            "reasoning": reasoning_value,
+            "notes": notes
+        }
+        
+    except Exception as e:
+        print(f"Error in analyze_screenshot_and_text: {e}")
+        return default_response
+
+
 def query_chatgpt(url, context):
     try:
         result_data, screenshot = urlscan(url)
@@ -96,73 +274,30 @@ def query_chatgpt(url, context):
     if result_data and isinstance(result_data, dict):
         urlscan_uuid = result_data.get('task', {}).get('uuid') or result_data.get('uuid')
     
-    if openai is None or not OPENAI_API_KEY:
-        return {
-            "phish": "unknown",
-            "reasoning": "OpenAI unavailable; AI analysis skipped.",
-            "screenshot": screenshot,
-            "urlscan": urlscan_details,
-            "urlscan_uuid": urlscan_uuid,
-        }
-
-    prompt = (
-        "You are a cybersecurity AI. Given the URL '{}' , {}. Also using this png link of screenshot {}"
-        "Output exactly one JSON object with two keys: 'phish' (yes/no) and 'reasoning' (a short, one-sentence explanation). "
-        "Your output must not include any markdown formatting or extra text—only the JSON object."
-    ).format(url, context, screenshot)
-
-    try:
-        # Prefer the modern chat/completions API for broader compatibility
-        if hasattr(openai, 'chat') and hasattr(openai.chat, 'completions'):
-            response = openai.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": "You are a helpful cybersecurity assistant."},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.3,
-            )
-            text = response.choices[0].message.content.strip()
-        else:
-            # Fallback to legacy API
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a helpful cybersecurity assistant."},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.3,
-            )
-            text = response["choices"][0]["message"]["content"].strip()
-
-        # Strip optional code fences
-        if text.startswith("```"):
-            text = text.strip('`')
-            if text.startswith("json\n"):
-                text = text[len("json\n"):]
-
-        parsed = json.loads(text)
-        phish_value = parsed.get("phish", "unknown")
-        reasoning_value = parsed.get("reasoning", "")
-
-        return {
-            "phish": phish_value,
-            "reasoning": reasoning_value,
-            "screenshot": screenshot,
-            "urlscan": urlscan_details,
-            "urlscan_uuid": urlscan_uuid,
-        }
-
-    except Exception as e:
-        print("Error Querying ChatGPT:", e)
-        return {
-            "phish": "unknown",
-            "reasoning": "AI analysis failed.",
-            "error": str(e),
-            "screenshot": screenshot,
-            "urlscan": urlscan_details,
-            "urlscan_uuid": urlscan_uuid,
-        }
+    # Get screenshot bytes if available
+    screenshot_bytes = None
+    if screenshot and urlscan_uuid:
+        try:
+            # Try to load from cache
+            cached_file = SCREENSHOT_CACHE_DIR / f"{urlscan_uuid}.png"
+            if cached_file.exists():
+                with open(cached_file, 'rb') as f:
+                    screenshot_bytes = f.read()
+        except Exception as e:
+            print(f"Failed to load screenshot: {e}")
+    
+    # Use the new analyze function
+    ai_result = analyze_screenshot_and_text(url, screenshot_bytes)
+    
+    # Return combined result with all required fields
+    return {
+        "phish": ai_result["phish"],
+        "reasoning": ai_result["reasoning"],
+        "notes": ai_result["notes"],
+        "screenshot": 1 if screenshot else 0,
+        "urlscan": urlscan_details,
+        "urlscan_uuid": urlscan_uuid,
+    }
 
 
 def analyze_screenshot_bytes(image_bytes: bytes, max_notes: int = 6) -> list[str]:
@@ -170,7 +305,7 @@ def analyze_screenshot_bytes(image_bytes: bytes, max_notes: int = 6) -> list[str
     Analyze screenshot bytes using OpenAI Vision to extract short notes about potentially malicious UI elements.
     Returns a list of short phrases describing suspicious elements, or empty list on error.
     """
-    if not openai or not OPENAI_API_KEY or not image_bytes:
+    if not client or not OPENAI_API_KEY or not image_bytes:
         return []
     
     # Security: Limit image size to prevent abuse (8MB max)
@@ -197,8 +332,8 @@ def analyze_screenshot_bytes(image_bytes: bytes, max_notes: int = 6) -> list[str
 Return ONLY a simple bulleted list, no other text. Each note should be very concise. If no suspicious elements are found, return an empty response."""
 
         # Call OpenAI Vision API
-        if hasattr(openai, 'chat') and hasattr(openai.chat, 'completions'):
-            response = openai.chat.completions.create(
+        if hasattr(client, 'chat') and hasattr(client.chat, 'completions'):
+            response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
                     {
@@ -250,7 +385,7 @@ def detect_boxes_on_screenshot(image_bytes: bytes, max_boxes: int = 7) -> dict[s
     Detect bounding boxes for suspicious UI elements in a screenshot.
     Returns dict with image dimensions and boxes, or empty structure on error.
     """
-    if not openai or not OPENAI_API_KEY or not image_bytes:
+    if not client or not OPENAI_API_KEY or not image_bytes:
         return {"image": {}, "boxes": []}
     
     # Security: Limit image size to prevent abuse (8MB max)
@@ -285,8 +420,8 @@ Focus on detecting at most {max_boxes} elements like:
 Coordinates must be integers in pixel units relative to the original image. Tags must be 1-3 words describing the suspicious element. Return only the JSON, no other text."""
 
         # Call OpenAI Vision API
-        if hasattr(openai, 'chat') and hasattr(openai.chat, 'completions'):
-            response = openai.chat.completions.create(
+        if hasattr(client, 'chat') and hasattr(client.chat, 'completions'):
+            response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
                     {
@@ -370,7 +505,7 @@ def annotate_screenshot(scan_id):
     Analyze a screenshot using OpenAI Vision to identify potentially malicious UI elements.
     Returns JSON with bounding boxes and tags, or None for graceful degradation.
     """
-    if not openai or not OPENAI_API_KEY:
+    if not client or not OPENAI_API_KEY:
         return None
     
     # Try to load screenshot from cache first
@@ -423,8 +558,8 @@ Focus on detecting at most 7 elements like:
 Coordinates must be integers in pixel units relative to the original image. Tags must be 1-3 words describing the suspicious element. Return only the JSON, no other text."""
 
         # Call OpenAI Vision API
-        if hasattr(openai, 'chat') and hasattr(openai.chat, 'completions'):
-            response = openai.chat.completions.create(
+        if hasattr(client, 'chat') and hasattr(client.chat, 'completions'):
+            response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
                     {

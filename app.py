@@ -94,16 +94,24 @@ def _safe_get(d: dict, *path, default=None):
     return cur if cur is not None else default
 
 
-@app.route('/analyze', methods=['POST'])
+@app.route('/analyze', methods=['POST', 'GET'])
 def analyze_single():
     """
     Analyze a single input (URL/IP/domain/hash) and return normalized schema.
-    Request JSON: { "input": string }
+    Request JSON: { "input": string } or { "url": string }
+    GET request: ?url=string
     Response JSON: see README (status, verdict, uuid, submitted, ...)
     """
     try:
-        payload = request.get_json(force=True) or {}
-        user_input = (payload.get('input') or '').strip()
+        # Extract user input based on method and format
+        if request.method == 'POST':
+            payload = request.get_json(force=True) or {}
+            # Support both "input" and "url" parameters
+            user_input = (payload.get('url') or payload.get('input') or '').strip()
+        else:
+            # GET method
+            user_input = request.args.get('url', '').strip()
+            
         if not user_input:
             return jsonify({
                 'status': 'error',
@@ -208,6 +216,13 @@ def analyze_single():
             },
             'model_explanations': [ai_part.get('reasoning')] if ai_part.get('reasoning') else [],
             'risk_score': round(float(risk_score), 2),
+            'ai_analysis': {
+                'phish': ai_part.get('phish', 'unknown'),
+                'reasoning': ai_part.get('reasoning', ''),
+                'notes': ai_part.get('notes', ['Analysis unavailable']),
+                'screenshot': ai_part.get('screenshot', 0),
+                'urlscan_uuid': urlscan_uuid
+            }
         }
 
         # Cache and recent list
