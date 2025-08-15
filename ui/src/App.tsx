@@ -5,6 +5,7 @@ import Scan from './routes/Scan'
 import Terms from './routes/Terms'
 import Privacy from './routes/Privacy'
 import Security from './routes/Security'
+import { ConnectionStatus } from './components/ConnectionStatus'
 
 const router = createBrowserRouter([
   { path: '/', element: <Home /> },
@@ -16,6 +17,11 @@ const router = createBrowserRouter([
 ])
 
 export default function App() {
-  return <RouterProvider router={router} />
+  return (
+    <>
+      <ConnectionStatus />
+      <RouterProvider router={router} />
+    </>
+  )
 }
 

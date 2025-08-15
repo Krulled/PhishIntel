@@ -27,6 +27,15 @@ MAX_RECENT = 20
 SCREENSHOT_CACHE_DIR = Path("Data/urlscan_screenshots")
 SCREENSHOT_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Health check endpoint to verify backend is running and ready."""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.utcnow().isoformat(),
+        'service': 'phish-intel-backend'
+    }), 200
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     results = []

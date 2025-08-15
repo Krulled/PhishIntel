@@ -1,3 +1,5 @@
+import { backendHealthService } from './backendHealth';
+
 export type Verdict = 'Safe' | 'Suspicious' | 'Malicious'
 
 export type ScanResult = {
@@ -35,7 +37,7 @@ export type ScreenshotAnnotation = {
   version: string
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
 function toCurl(url: string, body: unknown): string {
   return `curl -sS -X POST '${url}' -H 'Content-Type: application/json' --data '${JSON.stringify(body)}'`
@@ -46,6 +48,12 @@ async function doFetch(input: RequestInfo, init?: RequestInit): Promise<Response
 }
 
 export async function analyze(inputValue: string): Promise<{ result: ScanResult; curl: string }>{
+  // Wait for backend to be healthy before making request
+  const isHealthy = await backendHealthService.waitForHealthy(30000); // 30 second timeout
+  if (!isHealthy) {
+    throw new Error('Backend service is unavailable. Please try again later.');
+  }
+  
   const endpoint = `${API_BASE_URL}/analyze`
   const payload = { input: inputValue }
   const curl = toCurl(endpoint, payload)

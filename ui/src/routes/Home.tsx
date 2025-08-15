@@ -1,13 +1,23 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import LiveStats from '../components/LiveStats'
 import RecentScansTicker from '../components/RecentScansTicker'
+import { backendHealthService, type HealthStatus } from '../services/backendHealth'
 
 export default function Home() {
   const navigate = useNavigate()
   const [input, setInput] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [healthStatus, setHealthStatus] = useState<HealthStatus>(
+    backendHealthService.getStatus()
+  )
   const inputRef = useRef<HTMLInputElement>(null)
+  
+  useEffect(() => {
+    // Subscribe to health status updates
+    const unsubscribe = backendHealthService.subscribe(setHealthStatus)
+    return unsubscribe
+  }, [])
 
   function validate(value: string): boolean {
     try { 
@@ -62,9 +72,9 @@ export default function Home() {
                 <button 
                   className="w-full rounded-lg bg-indigo-500 px-4 py-3 font-medium text-white hover:bg-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:opacity-50 disabled:cursor-not-allowed" 
                   type="submit"
-                  disabled={!input.trim()}
+                  disabled={!input.trim() || !healthStatus.isHealthy}
                 >
-                  Analyze
+                  {healthStatus.isHealthy ? 'Analyze' : 'Connecting...'}
                 </button>
               </div>
             </form>
