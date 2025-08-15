@@ -13,7 +13,7 @@ class BackendHealthService {
   };
   
   private listeners: ((status: HealthStatus) => void)[] = [];
-  private checkInterval: NodeJS.Timeout | null = null;
+  private checkInterval: number | null = null;
   private retryCount = 0;
   private maxRetries = 10;
   private baseDelay = 1000; // Start with 1 second
@@ -69,7 +69,7 @@ class BackendHealthService {
     if (this.checkInterval) {
       clearTimeout(this.checkInterval);
     }
-    this.checkInterval = setTimeout(() => this.performHealthCheck(), delay);
+    this.checkInterval = window.setTimeout(() => this.performHealthCheck(), delay);
   }
   
   private startHealthCheck() {
