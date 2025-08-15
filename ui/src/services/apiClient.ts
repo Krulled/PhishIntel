@@ -218,3 +218,23 @@ export async function getScreenshotAnnotations(scanId: string): Promise<Screensh
     return null
   }
 }
+
+export async function getUrlscanSummary(uuid: string): Promise<string | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/urlscan/${uuid}/summary`);
+    
+    if (response.status === 204) {
+      return null;
+    }
+    
+    if (!response.ok) {
+      return null;
+    }
+    
+    const data = await response.json();
+    return data.summary || null;
+  } catch (error) {
+    console.error('Failed to fetch URLScan summary:', error);
+    return null;
+  }
+}

@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, jsonify, send_file
+from flask import Flask, request, render_template, jsonify, send_file, Response
 from flask_cors import CORS
 import os
 import tempfile
@@ -456,4 +456,64 @@ def test_scan_with_screenshot():
     SCAN_CACHE['0198916b-e29a-77ad-8a43-66a70133ab3b'] = test_scan_result
     
     return jsonify(test_scan_result)
+
+
+@app.route('/api/urlscan/<uuid>/screenshot')
+def get_urlscan_screenshot(uuid):
+    """
+    Fetch URLScan screenshot for a given UUID.
+    Returns PNG image with cache headers or 404 JSON.
+    """
+    try:
+        # Validate UUID format (basic check)
+        if not uuid or len(uuid) < 10:
+            return jsonify({'error': 'invalid_uuid'}), 404
+        
+        # Get screenshot bytes
+        from urlscan import get_screenshot_bytes
+        screenshot_bytes = get_screenshot_bytes(uuid)
+        
+        if not screenshot_bytes:
+            return jsonify({'error': 'not_found'}), 404
+        
+        # Return image with cache headers
+        response = Response(screenshot_bytes, mimetype='image/png')
+        response.headers['Cache-Control'] = 'public, max-age=3600'
+        return response
+        
+    except Exception as e:
+        print(f"Error serving screenshot: {e}")
+        return jsonify({'error': 'not_found'}), 404
+
+
+@app.route('/api/urlscan/<uuid>/summary')
+def get_urlscan_summary(uuid):
+    """
+    Get AI-generated two-sentence summary of URLScan screenshot.
+    Returns 200 with summary or 204 if no screenshot/summary available.
+    """
+    try:
+        # Validate UUID format
+        if not uuid or len(uuid) < 10:
+            return '', 204
+        
+        # Get screenshot bytes
+        from urlscan import get_screenshot_bytes
+        screenshot_bytes = get_screenshot_bytes(uuid)
+        
+        if not screenshot_bytes:
+            return '', 204
+        
+        # Generate summary
+        from ai_analysis import summarize_screenshot
+        summary = summarize_screenshot(screenshot_bytes)
+        
+        if not summary:
+            return '', 204
+        
+        return jsonify({'summary': summary}), 200
+        
+    except Exception as e:
+        print(f"Error generating summary: {e}")
+        return '', 204
 

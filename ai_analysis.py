@@ -638,6 +638,63 @@ Coordinates must be integers in pixel units relative to the original image. Tags
         return None
 
 
+def summarize_screenshot(image_bytes: bytes) -> str:
+    """
+    Generate a two-sentence summary of a screenshot focusing on risky UI elements.
+    Returns empty string on failure.
+    """
+    if not client or not OPENAI_API_KEY or not image_bytes:
+        return ""
+    
+    # Size limit check (8MB)
+    if len(image_bytes) > 8 * 1024 * 1024:
+        print("Screenshot exceeds 8MB limit")
+        return ""
+    
+    try:
+        # Encode image to base64
+        image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+        
+        messages = [
+            {
+                "role": "system",
+                "content": "You write exactly two short sentences (≤280 chars total) describing a webpage screenshot and calling out any risky UI (e.g., login prompt, 'download document', urgent CTA). No extra text, no lists."
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/png;base64,{image_b64}",
+                            "detail": "high"
+                        }
+                    }
+                ]
+            }
+        ]
+        
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            temperature=0.3,
+            max_tokens=100,
+            timeout=15
+        )
+        
+        summary = response.choices[0].message.content.strip()
+        
+        # Ensure it's not too long
+        if len(summary) > 280:
+            summary = summary[:277] + "..."
+        
+        return summary
+        
+    except Exception as e:
+        print(f"Error generating screenshot summary: {e}")
+        return ""
+
+
 if __name__ == "__main__":
     test_url = "http://amaz0n.com/deals"
     test_context = "Determine if this URL is potentially used for phishing."
