@@ -1,5 +1,4 @@
-
-git add * git add *(services:
+services:
   - type: web
     name: phishintel-backend
     env: python
@@ -14,7 +13,7 @@ git add * git add *(services:
       - key: URLSCAN_API_KEY
         sync: false
       - key: ALLOWED_ORIGINS
-        value: "https://your-vercel-app.vercel.app"
+        value: "https://phish-intel.vercel.app,http://localhost:5173,http://127.0.0.1:5173"
       - key: PORT
         value: "5000"
     healthCheckPath: /api/health

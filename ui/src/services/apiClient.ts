@@ -44,20 +44,12 @@ function getApiBaseUrl(): string {
     return import.meta.env.VITE_API_URL;
   }
   
-  // Common backend URLs to try
-  const possibleUrls = [
-    // Production URLs (update these with your actual backend URLs)
-    'https://phishintel-backend.onrender.com',
-    'https://phish-intel.onrender.com',
-    'https://phish-intel-backend.onrender.com',
-    // Development URLs
-    'http://localhost:5000',
-    'http://127.0.0.1:5000',
-  ];
+  // Check if we're in production
+  const isProduction = import.meta.env.PROD || window.location.hostname.includes('vercel.app');
   
-  // In production (Vercel), try to use a backend on a known service
-  if (window.location.hostname.includes('vercel.app')) {
-    // Return the first production URL (phishintel-backend as per render.yaml)
+  if (isProduction) {
+    // In production, use the Render backend URL
+    // This should match the name in render.yaml
     return 'https://phishintel-backend.onrender.com';
   }
   
