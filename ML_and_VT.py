@@ -34,11 +34,18 @@ load_dotenv()
 # Initialize VT client only if available and key provided
 api_key = os.getenv("VT_API_KEY", "")
 client = None
-if vt and api_key:
-    try:
-        client = vt.Client(api_key)
-    except Exception:
-        client = None
+# Temporarily disable VT to isolate the issue
+# if vt and api_key:
+#     try:
+#         print(f"Initializing VT client with API key: {api_key[:10]}...")
+#         client = vt.Client(api_key)
+#         print("VT client initialized successfully")
+#     except Exception as e:
+#         print(f"Failed to initialize VT client: {e}")
+#         client = None
+# else:
+#     print("VT client not initialized - missing API key or vt module")
+print("VT client temporarily disabled for debugging")
 
 model_filename = 'phishing.pkl'
 

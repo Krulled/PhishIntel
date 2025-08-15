@@ -8,7 +8,7 @@ pandas==2.2.0
 numpy==1.26.4
 tldextract==5.1.1
 vt-py==0.14.0
-requests==2.31.0
+requests==2.28.2
 
 # Development/audit dependencies - using compatible versions
 pip-audit==2.6.1

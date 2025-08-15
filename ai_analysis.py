@@ -83,7 +83,12 @@ def _extract_urlscan_details(result_data):
 
 
 def query_chatgpt(url, context):
-    result_data, screenshot = urlscan(url)
+    try:
+        result_data, screenshot = urlscan(url)
+    except Exception as e:
+        print(f"URLScan error: {e}")
+        result_data, screenshot = {}, 0
+    
     urlscan_details = _extract_urlscan_details(result_data)
     
     # Extract URLScan UUID from result_data if available
