@@ -16,7 +16,19 @@ allowed_origins = os.environ.get('ALLOWED_ORIGINS', 'http://localhost:5173,http:
 origins_list = [origin.strip() for origin in allowed_origins.split(',')]
 
 # Configure CORS to allow frontend to call the API
-CORS(app, resources={r"/*": {"origins": origins_list}})
+# In production, we'll be more permissive with Vercel apps
+def is_allowed_origin(origin):
+    if not origin:
+        return False
+    # Check explicit allowed origins
+    if origin in origins_list:
+        return True
+    # Allow any Vercel app in production
+    if os.environ.get('FLASK_ENV') == 'production' and 'vercel.app' in origin:
+        return True
+    return False
+
+CORS(app, resources={r"/*": {"origins": "*" if os.environ.get('FLASK_ENV') == 'production' else origins_list}})
 
 # In-memory cache for scan results (per-process)
 SCAN_CACHE = {}

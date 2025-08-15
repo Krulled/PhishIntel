@@ -17,7 +17,7 @@ git add * git add *(services:
         value: "https://your-vercel-app.vercel.app"
       - key: PORT
         value: "5000"
-    healthCheckPath: /api/recent
+    healthCheckPath: /api/health
     autoDeploy: true
     scaling:
       minInstances: 1

@@ -5,6 +5,7 @@ import Scan from './routes/Scan'
 import Terms from './routes/Terms'
 import Privacy from './routes/Privacy'
 import Security from './routes/Security'
+import Debug from './routes/Debug'
 import { ConnectionStatus } from './components/ConnectionStatus'
 
 const router = createBrowserRouter([
@@ -14,6 +15,7 @@ const router = createBrowserRouter([
   { path: '/terms', element: <Terms /> },
   { path: '/privacy', element: <Privacy /> },
   { path: '/security', element: <Security /> },
+  { path: '/debug', element: <Debug /> },
 ])
 
 export default function App() {

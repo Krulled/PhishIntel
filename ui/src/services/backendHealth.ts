@@ -25,6 +25,7 @@ class BackendHealthService {
   
   private async checkHealth(): Promise<boolean> {
     try {
+      console.log(`Checking backend health at: ${API_BASE_URL}/api/health`);
       const response = await fetch(`${API_BASE_URL}/api/health`, {
         method: 'GET',
         signal: AbortSignal.timeout(5000), // 5 second timeout
@@ -32,11 +33,14 @@ class BackendHealthService {
       
       if (response.ok) {
         const data = await response.json();
+        console.log('Backend health check successful:', data);
         return data.status === 'healthy';
       }
+      console.warn(`Backend health check returned status: ${response.status}`);
       return false;
     } catch (error) {
       console.error('Health check failed:', error);
+      console.error('Backend URL:', API_BASE_URL);
       return false;
     }
   }
@@ -47,7 +51,7 @@ class BackendHealthService {
     this.healthStatus = {
       isHealthy,
       lastChecked: new Date(),
-      error: isHealthy ? undefined : 'Backend connection failed',
+      error: isHealthy ? undefined : `Cannot connect to backend at ${API_BASE_URL}`,
     };
     
     // Notify all listeners
