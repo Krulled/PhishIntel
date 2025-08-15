@@ -72,7 +72,7 @@ export default function ValuesView({ raw }: { raw: any }) {
 
       {/* URLScan Screenshot section (replaces Evidence/Map) */}
       <div data-testid="evidence-section">
-        <UrlscanScreenshot scanId={scanId} />
+        <UrlscanScreenshot uuid={scanId} url={norm.url} />
       </div>
 
       {/* All Values (Flattened) table */}
