@@ -1,0 +1,110 @@
+diff --git a/ui/vercel.json b/ui/vercel.json
+index original..secure 100644
+--- a/ui/vercel.json
++++ b/ui/vercel.json
+@@ -4,5 +4,69 @@
+   "framework": "vite",
+   "rewrites": [
+     { "source": "/(.*)", "destination": "/index.html" }
+-  ]
++  ],
++  "headers": [
++    {
++      "source": "/(.*)",
++      "headers": [
++        {
++          "key": "X-Content-Type-Options",
++          "value": "nosniff"
++        },
++        {
++          "key": "X-Frame-Options",
++          "value": "DENY"
++        },
++        {
++          "key": "X-XSS-Protection",
++          "value": "1; mode=block"
++        },
++        {
++          "key": "Referrer-Policy",
++          "value": "strict-origin-when-cross-origin"
++        },
++        {
++          "key": "Permissions-Policy",
++          "value": "camera=(), microphone=(), geolocation=(), payment=()"
++        },
++        {
++          "key": "Strict-Transport-Security",
++          "value": "max-age=31536000; includeSubDomains; preload"
++        },
++        {
++          "key": "Content-Security-Policy",
++          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' https://phishintel-backend.onrender.com https://*.vercel.app; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
++        }
++      ]
++    },
++    {
++      "source": "/api/(.*)",
++      "headers": [
++        {
++          "key": "Cache-Control",
++          "value": "no-store, no-cache, must-revalidate"
++        }
++      ]
++    },
++    {
++      "source": "/(.*).js",
++      "headers": [
++        {
++          "key": "Cache-Control",
++          "value": "public, max-age=31536000, immutable"
++        }
++      ]
++    },
++    {
++      "source": "/(.*).css",
++      "headers": [
++        {
++          "key": "Cache-Control",
++          "value": "public, max-age=31536000, immutable"
++        }
++      ]
++    }
++  ],
++  "functions": {
++    "api/**/*": {
++      "maxDuration": 10
++    }
++  },
++  "github": {
++    "silent": true
++  }
+ }
+
+diff --git a/ui/vite.config.ts b/ui/vite.config.ts
+index original..secure 100644
+--- a/ui/vite.config.ts
++++ b/ui/vite.config.ts
+@@ -4,6 +4,23 @@ import react from '@vitejs/plugin-react'
+ // https://vite.dev/config/
+ export default defineConfig({
+   plugins: [react()],
++  build: {
++    sourcemap: process.env.NODE_ENV !== 'production', // Disable source maps in production
++    rollupOptions: {
++      output: {
++        manualChunks: {
++          vendor: ['react', 'react-dom', 'react-router-dom'],
++        },
++      },
++    },
++  },
++  server: {
++    headers: {
++      'X-Content-Type-Options': 'nosniff',
++      'X-Frame-Options': 'DENY',
++      'X-XSS-Protection': '1; mode=block',
++    },
++  },
+   test: {
+     environment: 'jsdom',
+     setupFiles: './vitest.setup.ts',
